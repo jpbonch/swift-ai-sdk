@@ -64,115 +64,125 @@ public struct BedrockModel: LanguageModel {
 
         return AsyncThrowingStream<StreamPart, Error> { continuation in
             let task = Task {
-                var toolBlocks: [Int: (id: String, name: String, type: String?, json: String)] = [:]
-                var stopReason: String?
-                var isJsonResponseFromTool = false
-                var usage = Usage()
-
-                do {
-                    for try await message in AWSEventStream.messages(from: bytes) {
-                        let messageType = message.headers[":message-type"]
-                        if messageType == "exception" {
-                            let kind = message.headers[":exception-type"] ?? "exception"
-                            throw AIError.transport(
-                                "bedrock stream \(kind): \(String(decoding: message.payload, as: UTF8.self))"
-                            )
-                        }
-                        guard messageType == "event",
-                              let eventType = message.headers[":event-type"],
-                              let payload = try? JSONDecoder().decode(JSONValue.self, from: message.payload)
-                        else { continue }
-
-                        switch eventType {
-                        case "contentBlockStart":
-                            guard let toolUse = payload["start"]?["toolUse"],
-                                  let id = toolUse["toolUseId"]?.stringValue,
-                                  let name = toolUse["name"]?.stringValue
-                            else { break }
-                            let index = payload["contentBlockIndex"]?.intValue ?? 0
-                            let type = toolUse["type"]?.stringValue
-                            toolBlocks[index] = (id: id, name: name, type: type, json: "")
-                            if !(isForcedJSON && name == Self.jsonToolName) {
-                                continuation.yield(.toolCallStart(id: id, name: name))
-                            }
-
-                        case "contentBlockDelta":
-                            guard let delta = payload["delta"] else { break }
-                            let index = payload["contentBlockIndex"]?.intValue ?? 0
-                            if let text = delta["text"]?.stringValue {
-                                continuation.yield(.textDelta(text))
-                            } else if let fragment = delta["toolUse"]?["input"]?.stringValue {
-                                toolBlocks[index]?.json += fragment
-                                if let block = toolBlocks[index],
-                                   !(isForcedJSON && block.name == Self.jsonToolName) {
-                                    continuation.yield(.toolArgumentsDelta(
-                                        id: block.id, partialJSON: fragment
-                                    ))
-                                }
-                            } else if let thinking = delta["reasoningContent"]?["text"]?.stringValue {
-                                continuation.yield(.reasoningDelta(thinking))
-                            }
-
-                        case "contentBlockStop":
-                            let index = payload["contentBlockIndex"]?.intValue ?? 0
-                            guard let block = toolBlocks.removeValue(forKey: index) else { break }
-                            let jsonText = block.json.isEmpty ? "{}" : block.json
-                            if isForcedJSON && block.name == Self.jsonToolName {
-                                isJsonResponseFromTool = true
-                                continuation.yield(.textDelta(jsonText))
-                            } else {
-                                continuation.yield(.toolCall(ToolCall(
-                                    id: block.id,
-                                    name: block.name,
-                                    arguments: Self.parseArguments(jsonText),
-                                    providerExecuted: block.type != nil
-                                )))
-                            }
-
-                        case "messageStop":
-                            stopReason = payload["stopReason"]?.stringValue
-
-                        case "metadata":
-                            if let u = payload["usage"] {
-                                usage = Usage(
-                                    inputTokens: (u["inputTokens"]?.intValue ?? 0)
-                                        + (u["cacheReadInputTokens"]?.intValue ?? 0)
-                                        + (u["cacheWriteInputTokens"]?.intValue ?? 0),
-                                    outputTokens: u["outputTokens"]?.intValue ?? 0,
-                                    cachedInputTokens: u["cacheReadInputTokens"]?.intValue
-                                )
-                            }
-                            var bedrock: [String: JSONValue] = [:]
-                            if let trace = payload["trace"] { bedrock["trace"] = trace }
-                            if let cacheWrite = payload["usage"]?["cacheWriteInputTokens"] {
-                                bedrock["cacheWriteInputTokens"] = cacheWrite
-                            }
-                            if !bedrock.isEmpty {
-                                continuation.yield(.providerMetadata(.object(["bedrock": .object(bedrock)])))
-                            }
-
-                        case "internalServerException", "modelStreamErrorException",
-                             "throttlingException", "validationException":
-                            throw AIError.transport(
-                                "bedrock stream \(eventType): \(String(decoding: message.payload, as: UTF8.self))"
-                            )
-
-                        default:
-                            break
-                        }
-                    }
-                    continuation.yield(.finish(
-                        reason: Self.mapStopReason(
-                            stopReason, isJsonResponseFromTool: isJsonResponseFromTool
-                        ),
-                        usage: usage
-                    ))
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+                await Self.pumpEvents(
+                    from: bytes, isForcedJSON: isForcedJSON, into: continuation
+                )
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private static func pumpEvents(
+        from bytes: URLSession.AsyncBytes,
+        isForcedJSON: Bool,
+        into continuation: AsyncThrowingStream<StreamPart, Error>.Continuation
+    ) async {
+        var toolBlocks: [Int: (id: String, name: String, type: String?, json: String)] = [:]
+        var stopReason: String?
+        var isJsonResponseFromTool = false
+        var usage = Usage()
+
+        do {
+            for try await message in AWSEventStream.messages(from: bytes) {
+                let messageType = message.headers[":message-type"]
+                if messageType == "exception" {
+                    let kind = message.headers[":exception-type"] ?? "exception"
+                    throw AIError.transport(
+                        "bedrock stream \(kind): \(String(decoding: message.payload, as: UTF8.self))"
+                    )
+                }
+                guard messageType == "event",
+                      let eventType = message.headers[":event-type"],
+                      let payload = try? JSONDecoder().decode(JSONValue.self, from: message.payload)
+                else { continue }
+
+                switch eventType {
+                case "contentBlockStart":
+                    guard let toolUse = payload["start"]?["toolUse"],
+                          let id = toolUse["toolUseId"]?.stringValue,
+                          let name = toolUse["name"]?.stringValue
+                    else { break }
+                    let index = payload["contentBlockIndex"]?.intValue ?? 0
+                    let type = toolUse["type"]?.stringValue
+                    toolBlocks[index] = (id: id, name: name, type: type, json: "")
+                    if !(isForcedJSON && name == Self.jsonToolName) {
+                        continuation.yield(.toolCallStart(id: id, name: name))
+                    }
+
+                case "contentBlockDelta":
+                    guard let delta = payload["delta"] else { break }
+                    let index = payload["contentBlockIndex"]?.intValue ?? 0
+                    if let text = delta["text"]?.stringValue {
+                        continuation.yield(.textDelta(text))
+                    } else if let fragment = delta["toolUse"]?["input"]?.stringValue {
+                        toolBlocks[index]?.json += fragment
+                        if let block = toolBlocks[index],
+                           !(isForcedJSON && block.name == Self.jsonToolName) {
+                            continuation.yield(.toolArgumentsDelta(
+                                id: block.id, partialJSON: fragment
+                            ))
+                        }
+                    } else if let thinking = delta["reasoningContent"]?["text"]?.stringValue {
+                        continuation.yield(.reasoningDelta(thinking))
+                    }
+
+                case "contentBlockStop":
+                    let index = payload["contentBlockIndex"]?.intValue ?? 0
+                    guard let block = toolBlocks.removeValue(forKey: index) else { break }
+                    let jsonText = block.json.isEmpty ? "{}" : block.json
+                    if isForcedJSON && block.name == Self.jsonToolName {
+                        isJsonResponseFromTool = true
+                        continuation.yield(.textDelta(jsonText))
+                    } else {
+                        continuation.yield(.toolCall(ToolCall(
+                            id: block.id,
+                            name: block.name,
+                            arguments: Self.parseArguments(jsonText),
+                            providerExecuted: block.type != nil
+                        )))
+                    }
+
+                case "messageStop":
+                    stopReason = payload["stopReason"]?.stringValue
+
+                case "metadata":
+                    if let u = payload["usage"] {
+                        usage = Usage(
+                            inputTokens: (u["inputTokens"]?.intValue ?? 0)
+                                + (u["cacheReadInputTokens"]?.intValue ?? 0)
+                                + (u["cacheWriteInputTokens"]?.intValue ?? 0),
+                            outputTokens: u["outputTokens"]?.intValue ?? 0,
+                            cachedInputTokens: u["cacheReadInputTokens"]?.intValue
+                        )
+                    }
+                    var bedrock: [String: JSONValue] = [:]
+                    if let trace = payload["trace"] { bedrock["trace"] = trace }
+                    if let cacheWrite = payload["usage"]?["cacheWriteInputTokens"] {
+                        bedrock["cacheWriteInputTokens"] = cacheWrite
+                    }
+                    if !bedrock.isEmpty {
+                        continuation.yield(.providerMetadata(.object(["bedrock": .object(bedrock)])))
+                    }
+
+                case "internalServerException", "modelStreamErrorException",
+                     "throttlingException", "validationException":
+                    throw AIError.transport(
+                        "bedrock stream \(eventType): \(String(decoding: message.payload, as: UTF8.self))"
+                    )
+
+                default:
+                    break
+                }
+            }
+            continuation.yield(.finish(
+                reason: Self.mapStopReason(
+                    stopReason, isJsonResponseFromTool: isJsonResponseFromTool
+                ),
+                usage: usage
+            ))
+            continuation.finish()
+        } catch {
+            continuation.finish(throwing: error)
         }
     }
 
