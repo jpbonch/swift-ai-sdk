@@ -1,0 +1,99 @@
+---
+title: Middleware
+description: Wrap a model to intercept requests and stream parts, for caching, reasoning extraction, defaults, and custom hooks.
+icon: Layers
+---
+
+`wrapLanguageModel` intercepts requests and stream parts. The built-ins
+cover the common cases:
+
+```swift
+let model = wrapLanguageModel(
+  model: OllamaModel("qwen3"),
+  middleware: [
+    .cache(),                          // replay identical requests
+    .extractReasoning(tag: "think"),   // lift <think> spans into reasoning
+    .defaultSettings(temperature: 0.2) // bake in defaults
+  ]
+)
+```
+
+`.simulateStreaming()` turns a non-streaming endpoint into a streaming
+one. `.extractJson()` strips markdown code fences from the response, for
+models that wrap JSON in ` ```json ` even when asked for raw output.
+`.addToolInputExamples()` folds a tool's `inputExamples` into its description
+for providers with no native field for them:
+
+```swift
+let search = Tool(
+  name: "search",
+  description: "Search the docs.",
+  parameters: Schema.object(["query": .string()]),
+  inputExamples: [["query": "install swift-ai-sdk"], ["query": "streaming"]]
+) { arguments in try await docs.search(arguments["query"]?.stringValue ?? "") }
+
+let model = wrapLanguageModel(
+  model: OpenAIModel("gpt-5"),
+  middleware: [.addToolInputExamples(prefix: "Input Examples:")]
+)
+```
+
+## Wrapping other model kinds
+
+Embedding, image, and whole-provider wrapping mirror the language-model
+version:
+
+```swift
+let embeddings = wrapEmbeddingModel(
+  model: OpenAIEmbeddingModel("text-embedding-3-small"),
+  middleware: [.defaultSettings(maxBatchSize: 96)]
+)
+
+let images = wrapImageModel(model: OpenAIImageModel("gpt-image-2"), middleware: [
+  ImageModelMiddleware(transformRequest: { request in
+    var request = request
+    request.prompt += ", studio lighting"
+    return request
+  })
+])
+
+let provider = wrapProvider(
+  provider: myProvider,
+  languageModelMiddleware: [.cache()],
+  embeddingModelMiddleware: [.defaultSettings(maxBatchSize: 96)]
+)
+```
+
+## Caching
+
+`.cache()` keys on the request plus the wrapped model's identity. A hit
+replays the stored stream parts without calling the model; a miss streams
+live, buffers the parts, and stores them once the stream completes. Errors
+are never cached.
+
+```swift
+let store = InMemoryLanguageModelCache()
+let model = wrapLanguageModel(model: OpenAIModel("gpt-5.6-luna"), middleware: [.cache(store: store)])
+```
+
+The default store is in-process. Conform to `LanguageModelCache`
+(`get`/`set` over `[StreamPart]`) to back it with Redis, disk, or anything
+else.
+
+## Custom middleware
+
+A middleware is a value with the hooks you need: `transformRequest` (edit
+the request), `wrapStream` (post-process stream parts), or `wrapCall` (wrap
+the whole call, deciding whether to invoke the model at all, which is what
+`.cache()` uses):
+
+```swift
+let logger = LanguageModelMiddleware(
+  transformRequest: { request in
+    print("sending \(request.messages.count) messages")
+    return request
+  }
+)
+```
+
+Middlewares apply in array order.

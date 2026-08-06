@@ -15,16 +15,29 @@ export default function Layout({ children }: LayoutProps<'/docs'>) {
   const isGuide = (url: string) => url.startsWith('/docs/guides');
   const isProvider = (url: string) => url.startsWith('/docs/providers');
   const isChangelog = (url: string) => url.startsWith('/docs/changelog');
+  const isReference = (url: string) => url.startsWith('/docs/reference');
+  const isTroubleshooting = (url: string) => url.startsWith('/docs/troubleshooting');
+  const inOwnTab = (url: string) =>
+    isGuide(url) || isProvider(url) || isChangelog(url) || isReference(url) || isTroubleshooting(url);
+
   const tabs = [
     {
       title: 'Documentation',
       description: 'The library, end to end.',
       url: '/docs',
-      urls: new Set(
-        pages
-          .filter((page) => !isGuide(page.url) && !isProvider(page.url) && !isChangelog(page.url))
-          .map((page) => page.url),
-      ),
+      urls: new Set(pages.filter((page) => !inOwnTab(page.url)).map((page) => page.url)),
+    },
+    {
+      title: 'Reference',
+      description: 'Every public function, signature by signature.',
+      url: '/docs/reference',
+      urls: new Set(pages.filter((page) => isReference(page.url)).map((page) => page.url)),
+    },
+    {
+      title: 'Troubleshooting',
+      description: 'Specific symptoms and what to change.',
+      url: '/docs/troubleshooting',
+      urls: new Set(pages.filter((page) => isTroubleshooting(page.url)).map((page) => page.url)),
     },
     {
       title: 'Providers',

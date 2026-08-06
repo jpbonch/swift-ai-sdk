@@ -1,0 +1,41 @@
+---
+title: "wrapLanguageModel"
+description: "Wrap a language model with middleware."
+---
+
+Returns a model that behaves like the one you passed in, with middleware
+intercepting requests and stream parts. Middlewares apply in array order.
+
+Built-ins cover caching, reasoning extraction, default settings, simulated
+streaming, JSON fence stripping, and folding tool input examples into
+descriptions.
+
+```swift
+let model = wrapLanguageModel(
+  model: OllamaModel("qwen3"),
+  middleware: [.cache(), .extractReasoning(tag: "think")]
+)
+```
+
+## Signature
+
+```swift
+func wrapLanguageModel(
+    model: any LanguageModel,
+    middleware: [LanguageModelMiddleware]
+) -> any LanguageModel
+```
+
+Defined in `Sources/AI/Core/Middleware.swift`.
+
+## Parameters
+
+<Parameters name="wrapLanguageModel" />
+
+## Returns
+
+An `any LanguageModel` you can use anywhere the original worked.
+
+## See also
+
+- [Middleware](/docs/middleware)

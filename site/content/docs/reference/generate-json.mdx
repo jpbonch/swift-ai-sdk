@@ -1,0 +1,48 @@
+---
+title: "generateJSON"
+description: "Generate free-form JSON with no schema."
+---
+
+Asks for valid JSON without constraining its shape, returning a `JSONValue`.
+
+Use it when the shape genuinely is not known ahead of time. When you do know
+it, [`generateObject`](/docs/reference/generate-object) is better in every
+way: it validates, it decodes, and the model follows a schema more reliably
+than an instruction.
+
+```swift
+let result = try await generateJSON(
+  model: OpenAIModel("gpt-5.1"),
+  prompt: "Summarize this log as JSON."
+)
+print(result.object["level"]?.stringValue ?? "")
+```
+
+## Signature
+
+```swift
+func generateJSON(
+    model: any LanguageModel,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) async throws -> GenerateObjectResult<JSONValue>
+```
+
+Defined in `Sources/AI/Core/GenerateObject.swift`.
+
+## Parameters
+
+<Parameters name="generateJSON" />
+
+## Returns
+
+`GenerateObjectResult<JSONValue>`.
+
+## See also
+
+- [generateObject](/docs/reference/generate-object)

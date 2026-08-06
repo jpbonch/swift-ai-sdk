@@ -1,0 +1,37 @@
+---
+title: "lastAssistantMessageIsCompleteWithApprovalResponses"
+description: "Check whether pending tool approvals have been answered."
+---
+
+The approval counterpart to
+[`lastAssistantMessageIsCompleteWithToolCalls`](/docs/reference/last-assistant-message-is-complete-with-tool-calls):
+true once every approval request in the last turn has a response, so the run
+can continue.
+
+```swift
+if lastAssistantMessageIsCompleteWithApprovalResponses(messages) {
+  try await resume(messages)
+}
+```
+
+## Signature
+
+```swift
+func lastAssistantMessageIsCompleteWithApprovalResponses(
+    _ messages: [UIMessage]
+) -> Bool
+```
+
+Defined in `Sources/AI/Transport/TextStreamChatTransport.swift`.
+
+## Parameters
+
+<Parameters name="lastAssistantMessageIsCompleteWithApprovalResponses" />
+
+## Returns
+
+A `Bool`.
+
+## See also
+
+- [Timeouts and approvals](/docs/timeouts-and-approvals)

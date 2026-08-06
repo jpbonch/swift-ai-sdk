@@ -52,7 +52,14 @@ let edited = try await generateImage(
     prompt: "Make the sky stormy",
     images: [sourceImage]                        // ImageContent, uses edits endpoint
 )
+
+let imagen = try await generateImage(
+    model: GoogleImageModel("imagen-4.0-generate-001"),  // models/{id}:predict
+    prompt: "Robot holding a red skateboard", n: 2
+)
 ```
+
+`GenerateImageResult` also exposes `file` / `files` as `GeneratedFile` (`data`, `mediaType`, `base64`, `bytes`).
 
 ## generateSpeech
 
@@ -83,7 +90,11 @@ XaiSpeechModel(_ modelID: String = "grok-tts", ...)                          // 
 CartesiaSpeechModel(_ modelID: String = "sonic-2", voice:sampleRate:...)     // CARTESIA_API_KEY, needs a voice id
 SarvamSpeechModel(_ modelID: String = "bulbul:v3", apiKey: String? = nil,
                   targetLanguage: String = "en-IN", ...)                     // SARVAM_API_KEY
+GoogleSpeechModel(_ modelID: String = "gemini-3.1-flash-tts-preview", ...)   // GOOGLE_GENERATIVE_AI_API_KEY,
+                  // generateContent with responseModalities: ["AUDIO"]; `voice` → prebuiltVoiceConfig
 ```
+
+Music: `GoogleMusicModel(_ modelID: String = "lyria-3-clip-preview", ...).generateMusic(prompt:negativePrompt:seed:providerOptions:) -> Data` (Lyria `:predict`).
 
 ```swift
 let speech = try await generateSpeech(
@@ -129,6 +140,22 @@ CartesiaTranscriptionModel(_ modelID: String = "ink-whisper", ...)   // CARTESIA
 SarvamTranscriptionModel(_ modelID: String = "saaras:v3", ...)       // SARVAM_API_KEY, sync multipart
 ```
 
+`transcribe` sniffs the container from the bytes (MP4/M4A `ftyp`, WAV, Ogg, FLAC, MP3) when `mediaType` is generic (`application/octet-stream`, `audio/*`, or empty), so a mislabeled upload still reaches the provider correctly. `detectAudioMediaType(_:)` is public.
+
+### streamTranscribe (live audio)
+
+```swift
+let result = try streamTranscribe(
+    model: DeepgramTranscriptionModel("nova-3"),   // conforms to StreamingTranscriptionModel
+    audio: micChunks,                               // AsyncThrowingStream<Data, Error>
+    mediaType: "audio/pcm",
+    providerOptions: ["language": "en-US"]
+)
+for try await part in result.fullStream { … }       // .partialTranscript / .transcriptDelta / .segment / .language / .speechStart / .speechEnd / .finish
+```
+
+`.partialTranscript` replaces the current draft, `.transcriptDelta` appends finalized text — `textStream` and `result.text` only accumulate deltas. `fullStream` is single-consumer with no replay: read it once, or skip it and await `result.text` / `.segments` / `.language`, which drain internally and cache. A failure before streaming starts cancels the audio stream you passed in. Non-streaming models throw `AIError.invalidRequest`.
+
 ```swift
 let transcript = try await transcribe(
     model: OpenAITranscriptionModel("whisper-1"),
@@ -172,6 +199,8 @@ LumaVideoModel(_ modelID: String = "ray-2", ...)         // LUMA_API_KEY, Dream 
 ByteDanceVideoModel(_ modelID: String = "seedance-1-0-pro-250528", ...) // ARK_API_KEY (Seedance), polls
 KlingVideoModel(_ modelID: String = "kling-v2-master", accessKey:secretKey:...) // KLING_ACCESS_KEY/SECRET, JWT, polls
 AlibabaVideoModel(_ modelID: String = "wan2.6-t2v", ...) // ALIBABA_API_KEY (Wan), async poll
+GoogleVideoModel(_ modelID: String = "veo-3.1-generate-preview", ...) // Veo :predictLongRunning, polls the operation, downloads the sample uri
+OpenAIVideoModel(_ modelID: String = "sora-2", ...)      // POST /v1/videos → poll status → /content; also remix/list/delete
 ```
 
 ```swift

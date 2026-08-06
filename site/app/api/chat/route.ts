@@ -1,4 +1,4 @@
-import { createXai } from '@ai-sdk/xai';
+import { openrouter } from '@openrouter/ai-sdk-provider';
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
@@ -58,9 +58,6 @@ async function chunkedAll<O>(promises: Promise<O>[]): Promise<O[]> {
   return out;
 }
 
-const xai = createXai({
-  apiKey: process.env.XAI_API_KEY,
-});
 
 /** System prompt, you can update it to provide more specific information */
 const systemPrompt = [
@@ -74,7 +71,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/chat">) {
   const reqJson = await req.json();
 
   const result = streamText({
-    model: xai(process.env.XAI_MODEL ?? 'grok-4.20-non-reasoning'),
+    model: openrouter('google/gemini-3.5-flash-lite'),
+    // This endpoint is public and unauthenticated, so the loop needs a ceiling
+    // — `isLoopFinished()` never returns true and would let a model that keeps
+    // calling `search` run without bound.
     stopWhen: stepCountIs(5),
     tools: {
       search: searchTool,

@@ -1,0 +1,45 @@
+---
+title: "generateVideo"
+description: "Generate video, polling until the job completes."
+---
+
+Video generation is asynchronous at every provider. This call submits the job
+and polls until it finishes, so you await one result instead of managing the
+job yourself.
+
+Expect it to take minutes. Give the surrounding call a generous timeout.
+
+```swift
+let result = try await generateVideo(
+  model: XaiVideoModel("grok-video"),
+  prompt: "A timelapse of clouds over a city"
+)
+```
+
+## Signature
+
+```swift
+func generateVideo(
+    model: any VideoModel,
+    prompt: String,
+    image: ImageContent? = nil,
+    aspectRatio: String? = nil,
+    duration: Int? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) async throws -> GenerateVideoResult
+```
+
+Defined in `Sources/AI/Core/VideoGeneration.swift`.
+
+## Parameters
+
+<Parameters name="generateVideo" />
+
+## Returns
+
+`GenerateVideoResult` with the `video` file and `providerMetadata`.
+
+## See also
+
+- [Video generation](/docs/video-generation)

@@ -31,7 +31,8 @@ lowest-common-denominator shims.
 | `GoogleModel` | Native Gemini wire; thinking levels and budgets |
 | `GoogleVertexModel` | Express-mode keys or bearer tokens |
 | `AzureOpenAIProvider` | Deployment-based routing |
-| `BedrockModel` | Converse over AWS event stream binary framing; API-key auth |
+| `BedrockModel` | Converse over AWS event stream binary framing; API-key or SigV4 auth |
+| `BedrockMantleProvider` | `bedrock-mantle`: Responses, chat completions, and Anthropic Messages |
 | `XaiModel` | Responses API default, typed `SearchParameters`, `.chat` legacy |
 | `GroqModel` | Reasoning deltas, `x_groq` usage envelope, cached tokens |
 | `DeepSeekModel` | `reasoning_content`, cache-hit accounting |
@@ -142,8 +143,9 @@ cross-provider view.
   <Card title="Anthropic" href="/docs/providers/anthropic" description="Adaptive thinking tiers, files and skills, caching." />
   <Card title="Google" href="/docs/providers/google" description="Gemini, Vertex routing, Gemini Live." />
   <Card title="Azure OpenAI" href="/docs/providers/azure" description="Deployment-based routing." />
-  <Card title="Amazon Bedrock" href="/docs/providers/bedrock" description="Converse over event streams, API-key auth." />
+  <Card title="Amazon Bedrock" href="/docs/providers/bedrock" description="bedrock-mantle OpenAI and Anthropic surfaces, plus Converse." />
   <Card title="xAI" href="/docs/providers/xai" description="Grok, typed live search, video, realtime." />
+  <Card title="Meta" href="/docs/providers/meta" description="Muse Spark on the Responses API, search grounding, tool search." />
   <Card title="Groq" href="/docs/providers/groq" description="Fast open models, reasoning deltas." />
   <Card title="DeepSeek" href="/docs/providers/deepseek" description="reasoning_content streaming." />
   <Card title="Mistral" href="/docs/providers/mistral" description="Chat wire plus a binary reasoning knob." />

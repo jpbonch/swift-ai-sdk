@@ -1,0 +1,38 @@
+---
+title: "wrapEmbeddingModel"
+description: "Wrap an embedding model with middleware."
+---
+
+The embedding-model counterpart to
+[`wrapLanguageModel`](/docs/reference/wrap-language-model), using
+`EmbeddingModelMiddleware`.
+
+```swift
+let embeddings = wrapEmbeddingModel(
+  model: OpenAIEmbeddingModel("text-embedding-3-small"),
+  middleware: [.defaultSettings(maxBatchSize: 96)]
+)
+```
+
+## Signature
+
+```swift
+func wrapEmbeddingModel(
+    model: any EmbeddingModel,
+    middleware: [EmbeddingModelMiddleware]
+) -> any EmbeddingModel
+```
+
+Defined in `Sources/AI/Core/ModelMiddleware.swift`.
+
+## Parameters
+
+<Parameters name="wrapEmbeddingModel" />
+
+## Returns
+
+An `any EmbeddingModel`.
+
+## See also
+
+- [Middleware](/docs/middleware)

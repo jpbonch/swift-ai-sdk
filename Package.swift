@@ -12,12 +12,21 @@ let package = Package(
     ],
     products: [
         .library(name: "AI", targets: ["AI"]),
+        .library(name: "AITUI", targets: ["AITUI"]),
         .library(name: "AITesting", targets: ["AITesting"]),
-        .executable(name: "demo", targets: ["Demo"])
+        .executable(name: "demo", targets: ["Demo"]),
+        .executable(name: "tui-demo", targets: ["TUIDemo"])
     ],
     targets: [
         .target(
             name: "AI",
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
+        ),
+        .target(
+            name: "AITUI",
+            dependencies: ["AI"],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
             ]
@@ -31,17 +40,21 @@ let package = Package(
         ),
         .testTarget(
             name: "AITests",
-            dependencies: ["AI", "AITesting"]
+            dependencies: ["AI", "AITUI", "AITesting"]
         ),
         .target(
             name: "Examples",
-            dependencies: ["AI"],
+            dependencies: ["AI", "AITUI"],
             path: "Examples",
             exclude: ["README.md"]
         ),
         .executableTarget(
             name: "Demo",
             dependencies: ["AI"]
+        ),
+        .executableTarget(
+            name: "TUIDemo",
+            dependencies: ["AI", "AITUI"]
         )
     ]
 )

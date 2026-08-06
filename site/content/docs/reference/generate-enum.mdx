@@ -1,0 +1,49 @@
+---
+title: "generateEnum"
+description: "Pick exactly one value from a fixed set."
+---
+
+Constrains the model to choose one of the strings you supply. The result is
+guaranteed to be a member of the set, so classification never needs a
+post-check or a fuzzy match.
+
+Cheaper and more reliable than asking for a label in prose and parsing it.
+
+```swift
+let result = try await generateEnum(
+  model: AnthropicModel("claude-haiku-4-5-20251001"),
+  values: ["billing", "technical", "sales"],
+  prompt: ticket
+)
+print(result.value)
+```
+
+## Signature
+
+```swift
+func generateEnum(
+    model: any LanguageModel,
+    values: [String],
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) async throws -> GenerateEnumResult
+```
+
+Defined in `Sources/AI/Core/GenerateObject.swift`.
+
+## Parameters
+
+<Parameters name="generateEnum" />
+
+## Returns
+
+`GenerateEnumResult` with the chosen `value`, `finishReason`, and `usage`.
+
+## See also
+
+- [Structured output](/docs/structured-output)

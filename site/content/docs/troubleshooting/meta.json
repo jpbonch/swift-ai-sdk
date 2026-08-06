@@ -1,0 +1,29 @@
+{
+  "title": "Troubleshooting",
+  "root": true,
+  "description": "Specific symptoms, why they happen, and what to change.",
+  "icon": "TriangleAlert",
+  "pages": [
+    "index",
+    "---Tools---",
+    "invalid-tool-approval",
+    "invalid-tool-input",
+    "missing-tool-results",
+    "tool-never-executes",
+    "unknown-tool",
+    "---Output---",
+    "decoding-error",
+    "no-object-generated",
+    "---Limits and timeouts---",
+    "context-window-exceeded",
+    "timed-out",
+    "---Providers and auth---",
+    "http-401-unauthorized",
+    "mcp-authorization-required",
+    "ollama-connection-refused",
+    "on-device-model-unavailable",
+    "---Streaming and UI---",
+    "duplicate-tool-parts-in-ui",
+    "stream-ends-early"
+  ]
+}

@@ -1,0 +1,39 @@
+---
+title: "AIError.noObjectGenerated"
+description: "Structured output did not parse or validate."
+---
+
+## Symptom
+
+`AIError.noObjectGenerated(...)` from `generateObject`, `generateObjectArray`,
+or `streamObject`.
+
+## Why it happens
+
+The model's output was not valid JSON, or it was valid JSON that did not
+satisfy the schema.
+
+The most common cause is not the model at all: the response hit
+`maxOutputTokens` and got cut off. A truncated object is invalid JSON, and the
+error looks identical to a model that simply got it wrong.
+
+## Fix
+
+Raise `maxOutputTokens` first. It fixes this more often than any prompt change,
+and costs nothing when the output is short anyway.
+
+If the output is complete but malformed, pass `repairText` to salvage it:
+
+```swift
+repairText: { text in
+  text.trimmingCharacters(in: CharacterSet(charactersIn: "` \n"))
+}
+```
+
+For models that wrap JSON in markdown fences even when asked not to, the
+`.extractJson()` middleware strips them.
+
+## See also
+
+- [Structured output](/docs/structured-output)
+- [generateObject](/docs/reference/generate-object)

@@ -12,10 +12,18 @@ public enum AIError: Error, Sendable, CustomStringConvertible {
     case invalidRequest(String)
     case transport(String)
     case noObjectGenerated(String)
+    case timedOut(scope: TimeoutScope, limit: Duration, tool: String?)
+    case invalidToolInput(tool: String, reason: String)
+    case invalidToolContext(tool: String, reason: String)
+    case missingToolResults([String])
+    case toolCallRepairFailed(tool: String, reason: String)
+    case invalidToolApproval(String)
+    case unsupportedFunctionality(String)
+    case authorizationRequired(url: URL)
 }
 ```
 
-`error.description` renders each case (`"HTTP 401: …"`, `"Decoding error: …"`, `"Unknown tool: …"`, `"Invalid request: …"`, `"Transport error: …"`, `"No object generated: …"`).
+`error.description` renders each case (`"HTTP 401: …"`, `"Decoding error: …"`, `"Unknown tool: …"`, `"Invalid request: …"`, `"Transport error: …"`, `"No object generated: …"`, `"Timed out: …"`, …).
 
 ## When each is thrown
 
@@ -25,6 +33,11 @@ public enum AIError: Error, Sendable, CustomStringConvertible {
 - `.invalidRequest(String)` — malformed input before/around the call: bad `provider:model` id or unregistered provider in `ProviderRegistry`, a provider that lacks the requested model kind, or an unsupported JSON Schema for on-device guided generation.
 - `.transport(String)` — networking / framework-level failure with no HTTP status. Foundation Models maps most of its framework errors here (unavailable assets, PCC quota, generic `FoundationModels` `NSError`s).
 - `.noObjectGenerated(String)` — `generateObject` completed but produced no parseable object matching the schema.
+- `.timedOut(scope:limit:tool:)` — a `GenerationTimeout` fired. `scope` is `.total`, `.step`, `.firstChunk`, `.chunk`, or `.tool`. **Tool** timeouts do not throw: they become an error `ToolResult` so the model can react; every other scope throws. See [timeouts-and-approvals.md](timeouts-and-approvals.md).
+- `.invalidToolContext(tool:reason:)` — the tool's `toolsContext` entry failed its `contextSchema`; the tool never ran. Surfaces as an error `ToolResult` inside the loop.
+- `.invalidToolInput` / `.missingToolResults` / `.toolCallRepairFailed` / `.invalidToolApproval` — tool-layer failures mirroring the AI SDK's typed errors.
+- `.unsupportedFunctionality(String)` — a capability the provider or platform does not offer.
+- `.authorizationRequired(url:)` — an MCP transport carrying an `MCPOAuthSession` hit a `401` it could not resolve by refreshing. Open `url` in a browser, then pass the redirect back to `MCPOAuthSession.complete(callbackURL:)` and retry.
 
 ## do / catch
 

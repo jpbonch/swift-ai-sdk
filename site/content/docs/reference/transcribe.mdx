@@ -1,0 +1,47 @@
+---
+title: "transcribe"
+description: "Transcribe an audio file to text."
+---
+
+Transcribes recorded audio. When the declared media type is generic, the
+format is sniffed from the bytes themselves, so MP4, M4A, WAV, Ogg, FLAC, and
+MP3 are recognized without you naming them.
+
+For microphone input that should transcribe as it arrives, use
+[`streamTranscribe`](/docs/reference/stream-transcribe).
+
+```swift
+let result = try await transcribe(
+  model: DeepgramTranscriptionModel("nova-3"),
+  audio: try Data(contentsOf: url)
+)
+print(result.text)
+```
+
+## Signature
+
+```swift
+func transcribe(
+    model: any TranscriptionModel,
+    audio: Data,
+    mediaType: String,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) async throws -> TranscriptionResult
+```
+
+Defined in `Sources/AI/Core/Transcription.swift`.
+
+## Parameters
+
+<Parameters name="transcribe" />
+
+## Returns
+
+`TranscriptionResult` with `text`, `segments`, detected `language`,
+`durationInSeconds`, and `providerMetadata`.
+
+## See also
+
+- [Transcription](/docs/transcription)
+- [streamTranscribe](/docs/reference/stream-transcribe)

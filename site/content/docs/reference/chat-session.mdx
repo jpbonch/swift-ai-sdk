@@ -1,0 +1,103 @@
+---
+title: "ChatSession"
+description: "An observable chat you can bind a SwiftUI view to."
+---
+
+Holds the message list, the in-flight status, and the send/stop/regenerate
+actions behind an observable object, so a view can bind to it and stay in sync
+without you writing the plumbing.
+
+It handles the parts that are tedious to get right by hand: streaming deltas
+into the right message, keeping tool call and result parts paired, surfacing
+errors, and cancelling cleanly when someone hits stop.
+
+```swift
+@State private var chat = ChatSession(
+  model: AnthropicModel("claude-sonnet-5")
+)
+
+var body: some View {
+  MessageList(messages: chat.messages)
+  TextField("Message", text: $draft)
+    .onSubmit { Task { await chat.send(draft) } }
+}
+```
+
+## Declaration
+
+```swift
+public class ChatSession
+```
+
+Defined in `Sources/AI/UI/ChatSession.swift`.
+
+## Initializer
+
+```swift
+init(
+    transport: any ChatTransport,
+    id: String = UUID().uuidString,
+    messages: [UIMessage] = []
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `let id` | `String` | — |
+| `var messages` | `[UIMessage]` | — |
+| `var status` | `Status` | `.ready` |
+| `var isLoading` | `Bool { status` | `= .submitted || status == .streaming }` |
+
+## Methods
+
+```swift
+func send(
+    _ text: String
+)
+```
+
+```swift
+func sendMessage(
+    _ message: UIMessage
+)
+```
+
+```swift
+func regenerate()
+```
+
+```swift
+func addToolResult(
+    toolCallID: String,
+    result: JSONValue
+)
+```
+
+```swift
+func addToolApprovalResponse(
+    approvalID: String,
+    approved: Bool,
+    reason: String? = nil
+)
+```
+
+```swift
+func resumeStream()
+```
+
+```swift
+func stop()
+```
+
+```swift
+func setMessages(
+    _ newMessages: [UIMessage]
+)
+```
+
+## See also
+
+- [Chat UI](/docs/chat-ui)
+- [Chat screen guide](/docs/guides/chat-screen)

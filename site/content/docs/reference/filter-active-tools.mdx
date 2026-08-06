@@ -1,0 +1,35 @@
+---
+title: "filterActiveTools"
+description: "Narrow a tool list to a named subset."
+---
+
+Returns only the tools whose names appear in the list you pass, preserving
+order. Handy inside `prepareStep` to change which tools a model can see from
+one step to the next without rebuilding the array.
+
+```swift
+filterActiveTools(tools, names: ["search", "read_file"])
+```
+
+## Signature
+
+```swift
+func filterActiveTools(
+    _ tools: [any AIToolProtocol],
+    activeTools: [String]?
+) -> [any AIToolProtocol]
+```
+
+Defined in `Sources/AI/Core/RuntimeContext.swift`.
+
+## Parameters
+
+<Parameters name="filterActiveTools" />
+
+## Returns
+
+A filtered `[any AIToolProtocol]`.
+
+## See also
+
+- [Tools](/docs/tools)

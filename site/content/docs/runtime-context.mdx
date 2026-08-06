@@ -1,0 +1,64 @@
+---
+title: Runtime context
+description: Carry server-side state through a run without putting it in the prompt, and mark tools whose schema is only known at runtime.
+icon: Variable
+---
+
+`runtimeContext` carries server-side state through a whole run without putting
+it in the prompt: tenant, request id, feature flags, a running budget. It is
+readable in `prepareStep`, replaceable from there, and lands on every
+`StepResult`:
+
+```swift
+let result = try await generateText(
+  model: model,
+  prompt: "Do the work.",
+  tools: [tool],
+  prepareStep: { context in
+    let used = context.runtimeContext?["toolCalls"]?.intValue ?? 0
+    return PrepareStepResult(runtimeContext: ["toolCalls": .number(Double(used + 1))])
+  },
+  runtimeContext: ["tenant": "acme", "toolCalls": .number(0)]
+)
+```
+
+## Per-tool context
+
+Per-tool state stays in `toolsContext`, where each tool sees only its own
+entry. A tool can validate that entry and even describe itself from it:
+
+```swift
+let weather = Tool(
+  name: "weather",
+  description: "Get the weather.",
+  parameters: Schema.object(["city": .string()])
+) { arguments, options in
+  try await fetch(city: arguments["city"]?.stringValue ?? "",
+                  key: options.context?["apiKey"]?.stringValue ?? "")
+}
+.withContextSchema(Schema.object(["apiKey": .string(), "unit": .string()]))
+.describing { context in
+  "Get the weather in \(context?["unit"]?.stringValue ?? "celsius")."
+}
+```
+
+Invalid context fails that tool call with `AIError.invalidToolContext` instead
+of reaching the tool.
+
+Neither `runtimeContext` nor `toolsContext` reaches telemetry spans unless you
+name the keys. See [telemetry](/docs/telemetry).
+
+## Dynamic tools
+
+Tools whose schema is only known at runtime, like MCP tools and user-defined
+functions, are marked dynamic so a UI can tell them apart from tools it was
+compiled against. MCP tools are dynamic automatically:
+
+```swift
+let tool = Tool.dynamic(name: name, description: description) { input, _ in
+  try await registry.call(name, input)
+}
+```
+
+The flag rides `ToolCall.isDynamic` and the `dynamic` field on
+`tool-input-available` / `tool-output-available` chunks.

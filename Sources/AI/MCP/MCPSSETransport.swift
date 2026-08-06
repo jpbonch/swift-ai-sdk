@@ -17,14 +17,18 @@ public actor MCPSSETransport: MCPTransport {
     private var endpointWaiters: [CheckedContinuation<URL, Error>] = []
     private var readerTask: Task<Void, Never>?
 
+    private let auth: MCPOAuthSession?
+
     public init(
         url: URL,
         headers: [String: String] = [:],
+        auth: MCPOAuthSession? = nil,
         urlSession: URLSession = .shared,
         requestTimeout: TimeInterval = 60
     ) {
         self.sseURL = url
         self.headers = headers
+        self.auth = auth
         self.urlSession = urlSession
         self.requestTimeout = requestTimeout
     }
@@ -85,7 +89,16 @@ public actor MCPSSETransport: MCPTransport {
             var request = URLRequest(url: sseURL)
             request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
             for (field, value) in headers { request.setValue(value, forHTTPHeaderField: field) }
+            if let auth, let header = try await auth.authorizationHeader() {
+                request.setValue(header, forHTTPHeaderField: "Authorization")
+            }
             let (bytes, response) = try await urlSession.bytes(for: request)
+            if let http = response as? HTTPURLResponse, http.statusCode == 401, let auth {
+                let challenge = http.value(forHTTPHeaderField: "WWW-Authenticate")
+                    ?? http.value(forHTTPHeaderField: "www-authenticate")
+                _ = try await auth.handleUnauthorized(wwwAuthenticate: challenge)
+                throw AIError.transport("MCP SSE stream needed a fresh token; reconnect to retry")
+            }
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 throw AIError.http(status: http.statusCode, body: "MCP SSE stream refused")
             }
@@ -105,6 +118,16 @@ public actor MCPSSETransport: MCPTransport {
             let resolved = URL(string: raw, relativeTo: sseURL)?.absoluteURL
                 ?? URL(string: raw)
             guard let endpoint = resolved else { return }
+            // An absolute URL here ignores the base entirely, and `post`
+            // attaches the Authorization header to whatever this is. A server
+            // that named another host would be handed the access token.
+            guard MCPOAuthFlow.sameOrigin(endpoint, sseURL) else {
+                failEndpointWaiters(AIError.transport(
+                    "MCP SSE server pointed its message endpoint at "
+                    + "\(endpoint.absoluteString), which is not \(sseURL.absoluteString)."
+                ))
+                return
+            }
             messageEndpoint = endpoint
             let waiters = endpointWaiters
             endpointWaiters.removeAll()
@@ -134,6 +157,9 @@ public actor MCPSSETransport: MCPTransport {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         for (field, value) in headers { request.setValue(value, forHTTPHeaderField: field) }
+        if let auth, let header = try await auth.authorizationHeader() {
+            request.setValue(header, forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try JSONEncoder().encode(body)
         let (data, response) = try await urlSession.data(for: request)
         guard let http = response as? HTTPURLResponse else {

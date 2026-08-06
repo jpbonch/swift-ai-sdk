@@ -1,0 +1,78 @@
+---
+title: "streamObject"
+description: "Stream a structured object as its fields fill in."
+---
+
+Streams partial versions of a structured result while the model is still
+generating it, so a UI can render fields as they land instead of waiting for
+the closing brace.
+
+For array schemas, `elementStream` yields each complete element as it
+finishes, which is usually what you want for a list that renders row by row.
+
+```swift
+let stream = streamObject(
+  model: AnthropicModel("claude-sonnet-5"),
+  schema: schema,
+  prompt: "Three startup ideas."
+)
+
+for try await partial in stream.partialObjectStream {
+  render(partial)
+}
+```
+
+## Signature
+
+```swift
+func streamObject(
+    model: any LanguageModel,
+    schema: JSONValue,
+    schemaName: String = "response",
+    schemaDescription: String? = nil,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) -> StreamObjectResult
+```
+
+Defined in `Sources/AI/Core/GenerateObject.swift`.
+
+## Parameters
+
+<Parameters name="streamObject" />
+
+## Overloads
+
+1 other form of this function exists:
+
+```swift
+func streamObject(
+    model: any LanguageModel,
+    schema: Schema,
+    schemaName: String = "response",
+    schemaDescription: String? = nil,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) -> StreamObjectResult
+```
+
+
+## Returns
+
+`StreamObjectResult` with `partialObjectStream`, `elementStream` for array
+schemas, and awaitable `object`, `usage`, and `finishReason`.
+
+## See also
+
+- [Structured output](/docs/structured-output)
+- [generateObject](/docs/reference/generate-object)

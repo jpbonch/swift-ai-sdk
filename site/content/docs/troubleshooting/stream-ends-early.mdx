@@ -1,0 +1,30 @@
+---
+title: "A stream stops before the answer finishes"
+description: "Output is cut off mid-sentence with no error."
+---
+
+## Symptom
+
+Streamed text stops partway and the run reports success.
+
+## Why it happens
+
+Check `finishReason` first. `.length` means the response hit
+`maxOutputTokens` and stopped there, which is not an error as far as the API is
+concerned.
+
+Reasoning models make this more likely, because thinking tokens count toward
+the same budget as the answer.
+
+## Fix
+
+Raise `maxOutputTokens`. The SDK default is deliberately small, and reasoning
+models need real headroom.
+
+If `finishReason` is `.stop` and the text still looks truncated, the model
+genuinely ended there and the fix is in the prompt.
+
+## See also
+
+- [Generating text](/docs/generating-text)
+- [streamText](/docs/reference/stream-text)

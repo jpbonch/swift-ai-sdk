@@ -8,6 +8,9 @@ A tool is anything conforming to `AIToolProtocol`: a name, a description,
 JSON Schema parameters, and an async `execute`. The closure-based `Tool`
 covers most cases.
 
+For what the model actually emits and why descriptions decide whether a tool
+gets used at all, see [tool calling](/docs/foundations/tool-calling).
+
 ```swift
 let search = Tool(
   name: "search",
@@ -81,6 +84,13 @@ let delete = Tool(
 Approval can also depend on the arguments: pass
 `needsApproval: { arguments in ... }`. In chat UIs, respond with
 `ChatSession.addToolApprovalResponse(approvalID:approved:)`.
+
+Per-tool `needsApproval` only expresses "ask a human". For policy that lives
+on the call — automatic denials with a reason, argument- or history-dependent
+decisions, or a rule set that differs per tenant — pass `toolApproval:` to
+`generateText` / `streamText` / `Agent`, and sign approvals with
+`toolApprovalSecret:` so a client cannot forge them. See
+[Timeouts and approvals](/docs/timeouts-and-approvals).
 
 ## Client-side tools
 

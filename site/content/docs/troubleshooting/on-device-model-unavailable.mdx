@@ -1,0 +1,32 @@
+---
+title: "Apple on-device model is unavailable"
+description: "Foundation Models is not ready on this machine."
+---
+
+## Symptom
+
+A run reports the on-device model as unavailable, with an availability reason.
+
+## Why it happens
+
+Apple Intelligence has to be enabled and its assets downloaded before
+`FoundationModelsModel` can serve requests. Availability is a device and OS
+state, not something the SDK controls.
+
+## Fix
+
+Check before constructing, and fall back to a cloud model when it is not ready:
+
+```swift
+let model: any LanguageModel = FoundationModelsModel.isAvailable
+  ? FoundationModelsModel()
+  : AnthropicModel("claude-sonnet-5")
+```
+
+`FoundationModelsModel.availability` carries the reason, which is worth
+surfacing rather than swallowing. Foundation Models also reports no token
+usage, so statistics readouts stay empty on that path.
+
+## See also
+
+- [On-device models](/docs/on-device)

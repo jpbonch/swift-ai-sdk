@@ -1,0 +1,66 @@
+---
+title: The loop
+description: Call, run tools, feed the results back, repeat. The shape of every generation.
+icon: RefreshCw
+---
+
+A language model does one thing. Given some text, it produces more text. It
+cannot search the web, read your database, or send an email.
+
+Everything that looks like an AI doing something is this loop wrapped around
+that one ability.
+
+## One turn
+
+Without tools, a generation is a single round trip. You send messages and a list
+of tools the model may use, the model replies with text, and you're done.
+
+That's `generateText` with no tools. One request, one answer.
+
+## More than one turn
+
+With tools, the reply might not be text. The model can instead say that it wants
+`get_weather` called with `{"city": "Oslo"}`. That isn't a function call. It's a
+message asking for one.
+
+So the loop keeps going:
+
+1. You send messages and tools.
+2. The model replies with a tool call.
+3. The SDK runs your tool and appends the result to the conversation.
+4. The whole conversation, now including the call and its result, goes back.
+5. The model replies, with text this time, or with another tool call.
+6. Repeat from step 3 until it answers in text or a stop condition fires.
+
+Each pass through steps 2 to 5 is a step. A run that searched twice before
+answering took three steps.
+
+## Why there's a limit
+
+Nothing in this loop guarantees the model stops asking for tools. A confused
+model can call the same tool forever, and every step costs a request.
+
+`maxSteps` is the ceiling that stops that. Most runs finish well under it. If
+yours regularly hits it, look at your tool descriptions before you raise the
+number.
+
+`stopWhen` gives you finer control. End after a particular tool has been called,
+or on any condition you can write over the steps so far.
+
+## Why this matters
+
+Most surprising behaviour makes sense once you can see the loop.
+
+A tool that "didn't run" usually means the model never asked for it, which is a
+description problem rather than an execution one. A token bill larger than you
+expected usually means the loop took several steps, and every step resends the
+whole conversation including previous tool results. A conversation that grows
+alarmingly fast is usually one where tool outputs are long, since those are
+messages too. And a run that stopped early either hit a stop condition or ran
+out of steps.
+
+## Next
+
+- [Tool calling](/docs/foundations/tool-calling) covers what the model emits and who runs it
+- [Generating text](/docs/generating-text) is the loop in code
+- [Agents](/docs/agents) is the loop with a fixed setup

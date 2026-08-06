@@ -1,0 +1,62 @@
+---
+title: Streaming
+description: What a stream carries besides text, and why it changes how you write the call.
+icon: Radio
+---
+
+Models generate one token at a time. A non-streaming call waits for the last one
+before it returns anything. A streaming call hands you each piece as it arrives.
+
+Total time is the same either way. What changes is when the first word shows up:
+a second or two instead of fifteen. For anything a person is watching, that gap
+is the whole experience.
+
+## When not to stream
+
+Streaming costs you some simplicity, so skip it when nobody is waiting. A
+background job, a server route that returns JSON, one step inside a larger
+pipeline, anything whose output you parse rather than display. Use
+`generateText` for those, and `streamText` when someone is watching text appear.
+
+## A stream isn't only text
+
+This is the part that surprises people. Text deltas are one kind of event among
+several, and in a run with tools they may not even be the first thing you see.
+
+A stream can carry fragments of the answer, the model's reasoning on providers
+that expose it, tool calls with their arguments streamed in as they're decided,
+tool results from your own code, step boundaries as one round trip ends and
+another begins, and finally token counts and a reason generation stopped.
+
+If you render only text deltas, a run that spends eight seconds calling tools
+looks frozen. Showing tool activity isn't decoration. It's what separates
+"working" from "broken" in the user's head.
+
+## Deltas are fragments
+
+A delta might be a few characters, part of a word, or a whole sentence. Never
+assume one delta is one token or one word. Append them and render the
+accumulated string.
+
+## The stream can fail partway
+
+An ordinary call either returns or throws. A stream can hand you half an answer
+and then fail: connection dropped, provider error, timeout.
+
+Partial output is a real state, so design for it. Keep what arrived, show that
+it ended early, and make retrying possible. And since a stalled stream stays
+open while producing nothing, a total timeout won't catch it on its own. You
+want a separate limit on the gap between chunks.
+
+## Cancellation is a feature
+
+Someone reading a wrong answer wants to stop it, and a view nobody is looking at
+shouldn't keep billing tokens. Streams cancel through Swift's normal task
+cancellation. Wire it to a stop button and to view teardown.
+
+## Next
+
+- [Generating text](/docs/generating-text) covers `streamText` in code
+- [Chat UI](/docs/chat-ui) is a SwiftUI surface that handles this for you
+- [Streaming protocol](/docs/streaming-protocol) covers the wire format
+- [Stream ends early](/docs/troubleshooting/stream-ends-early) covers when it stops short

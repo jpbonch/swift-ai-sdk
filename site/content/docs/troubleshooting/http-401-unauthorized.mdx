@@ -1,0 +1,33 @@
+---
+title: "HTTP 401 from a provider"
+description: "The API key is missing, wrong, or not reaching the provider."
+---
+
+## Symptom
+
+`AIError.http(status: 401, body: ...)`.
+
+## Why it happens
+
+Every provider pack falls back to a conventional environment variable when
+`apiKey:` is omitted, and an unset variable resolves to an empty string rather
+than crashing. So a missing key looks exactly like a wrong one, and only fails
+at request time.
+
+A GUI-launched app is the classic case: it does not inherit the environment
+your shell exports, so the key is present in Terminal and absent in the app.
+
+## Fix
+
+Pass the key explicitly when the process environment is not reliable:
+
+```swift
+AnthropicModel("claude-sonnet-5", apiKey: storedKey)
+```
+
+Check the body in the error too. Providers usually say whether the key is
+unknown, revoked, or lacking access to the specific model.
+
+## See also
+
+- [Providers](/docs/providers)

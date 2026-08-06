@@ -27,7 +27,7 @@ public actor MCPClient {
     }
 
     public func connect(
-        clientName: String = "swift-ai-sdk", clientVersion: String = "0.2.0"
+        clientName: String = "swift-ai-sdk", clientVersion: String = "0.3.0"
     ) async throws {
         guard !initialized else { return }
         _ = try await request(method: "initialize", params: .object([
@@ -104,6 +104,8 @@ struct MCPTool: AIToolProtocol {
     let parameters: JSONValue
     let client: MCPClient
 
+    var isDynamic: Bool { true }
+
     func execute(_ arguments: JSONValue) async throws -> JSONValue {
         try await client.callTool(name: name, arguments: arguments)
     }
@@ -112,12 +114,19 @@ struct MCPTool: AIToolProtocol {
 public actor MCPHTTPTransport: MCPTransport {
     private let url: URL
     private let headers: [String: String]
+    private let auth: MCPOAuthSession?
     private let urlSession: URLSession
     private var sessionID: String?
 
-    public init(url: URL, headers: [String: String] = [:], urlSession: URLSession = .shared) {
+    public init(
+        url: URL,
+        headers: [String: String] = [:],
+        auth: MCPOAuthSession? = nil,
+        urlSession: URLSession = .shared
+    ) {
         self.url = url
         self.headers = headers
+        self.auth = auth
         self.urlSession = urlSession
     }
 
@@ -128,10 +137,26 @@ public actor MCPHTTPTransport: MCPTransport {
             "method": .string(method),
             "params": params
         ])
-        let (data, response) = try await urlSession.data(for: makeRequest(body: body))
-        guard let http = response as? HTTPURLResponse else {
+        var (data, response) = try await urlSession.data(for: try await makeRequest(body: body))
+        guard var http = response as? HTTPURLResponse else {
             throw AIError.transport("MCP transport got a non-HTTP response")
         }
+
+        if http.statusCode == 401, let auth {
+            let challenge = http.value(forHTTPHeaderField: "WWW-Authenticate")
+                ?? http.value(forHTTPHeaderField: "www-authenticate")
+            guard try await auth.handleUnauthorized(wwwAuthenticate: challenge) else {
+                throw AIError.http(
+                    status: 401, body: String(decoding: data, as: UTF8.self)
+                )
+            }
+            (data, response) = try await urlSession.data(for: try await makeRequest(body: body))
+            guard let retried = response as? HTTPURLResponse else {
+                throw AIError.transport("MCP transport got a non-HTTP response")
+            }
+            http = retried
+        }
+
         if let session = http.value(forHTTPHeaderField: "mcp-session-id") {
             sessionID = session
         }
@@ -151,10 +176,11 @@ public actor MCPHTTPTransport: MCPTransport {
             "jsonrpc": "2.0",
             "method": .string(method)
         ])
-        _ = try? await urlSession.data(for: makeRequest(body: body))
+        guard let request = try? await makeRequest(body: body) else { return }
+        _ = try? await urlSession.data(for: request)
     }
 
-    private func makeRequest(body: JSONValue) throws -> URLRequest {
+    private func makeRequest(body: JSONValue) async throws -> URLRequest {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -164,6 +190,9 @@ public actor MCPHTTPTransport: MCPTransport {
         }
         for (field, value) in headers {
             urlRequest.setValue(value, forHTTPHeaderField: field)
+        }
+        if let auth, let header = try await auth.authorizationHeader() {
+            urlRequest.setValue(header, forHTTPHeaderField: "Authorization")
         }
         urlRequest.httpBody = try JSONEncoder().encode(body)
         return urlRequest

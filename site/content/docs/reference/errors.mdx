@@ -1,0 +1,114 @@
+---
+title: Errors
+description: Every AIError case, what throws it, and what to do about it.
+---
+
+Every failure in the SDK surfaces as a typed `AIError`. Streaming calls throw
+from the stream you iterate rather than from the call that created it.
+
+```swift
+do {
+  let result = try await generateText(model: model, prompt: prompt)
+} catch let AIError.http(status, body) {
+  // the provider's own error body, verbatim
+} catch AIError.noObjectGenerated {
+  // structured output did not parse or validate
+}
+```
+
+## Transport and request
+
+### `.http(status:body:)`
+
+A non-2xx response. `body` is the provider's error payload unchanged, which is
+usually the fastest way to see what it objected to. A 401 almost always means a
+missing or wrong API key; a 429 is a rate limit and is retried automatically
+before you ever see it.
+
+### `.transport(String)`
+
+The request never completed: connection refused, DNS failure, a socket closing
+mid-stream, an MCP server returning something unusable.
+
+### `.decoding(String)`
+
+A response arrived but did not match the shape expected. Usually a provider
+returning an error document where content belonged, or an OpenAI-compatible
+endpoint that is not as compatible as advertised.
+
+### `.invalidRequest(String)`
+
+The request was rejected before it was sent, because arguments do not make
+sense together. Thrown locally, so no tokens are spent.
+
+### `.unsupportedFunctionality(String)`
+
+The capability exists in the API but not on this provider or platform, such as
+PKCE `S256` where CryptoKit is unavailable. Not retryable; use a different
+provider or path.
+
+## Tools
+
+### `.unknownTool(String)`
+
+The model called a tool that was not in the array passed to the call. Most
+often the tool list changed between turns while the history still refers to the
+old one.
+
+### `.invalidToolInput(tool:reason:)`
+
+The arguments failed schema validation before the tool ran, so the tool was
+never invoked. Supply `repairToolCall` to fix a malformed call and retry it
+rather than failing the run.
+
+### `.invalidToolContext(tool:reason:)`
+
+The tool's entry in `toolsContext` failed the `contextSchema` it declared with
+`.withContextSchema(_:)`. A configuration error on your side, not the model's.
+
+### `.missingToolResults([String])`
+
+The conversation was sent on with tool calls that have no matching results. In
+a client-side tool flow this means a result was never posted back; check
+[`lastAssistantMessageIsCompleteWithToolCalls`](/docs/reference/last-assistant-message-is-complete-with-tool-calls)
+before resuming.
+
+### `.toolCallRepairFailed(tool:reason:)`
+
+`repairToolCall` ran and still could not produce a valid call. The underlying
+input is usually the real problem.
+
+### `.invalidToolApproval(String)`
+
+An approval response did not verify: a bad HMAC signature, a replayed
+approval, or an approval for a tool that was never offered. This check is
+fail-closed on purpose, so a client cannot forge one.
+
+## Output
+
+### `.noObjectGenerated(String)`
+
+Structured output did not parse or validate. Raising `maxOutputTokens` fixes it
+surprisingly often, because a truncated object is invalid JSON. `repairText`
+can salvage nearly-valid output.
+
+## Limits and lifecycle
+
+### `.timedOut(scope:limit:tool:)`
+
+A [timeout](/docs/timeouts-and-approvals) fired. `scope` says which one, which
+tells you what to change: `.total` for the whole call, `.step` for one model
+call, `.firstChunk` or `.chunk` for a stall, and a set `tool` for a specific
+tool. Tool timeouts do not throw by default, they come back as a tool error the
+model can react to.
+
+### `.authorizationRequired(url:)`
+
+An [MCP](/docs/mcp) server needs OAuth and the session could not refresh into a
+valid token. The URL is the sign-in page to open; hand the redirect back to
+`complete(callbackURL:)`.
+
+## See also
+
+- [Errors and retries](/docs/errors) for handling patterns and retry behavior
+- [Timeouts and approvals](/docs/timeouts-and-approvals)

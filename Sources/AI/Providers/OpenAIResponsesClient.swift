@@ -25,7 +25,7 @@ public struct OpenAIResponsesClient: Sendable {
         _ responseID: String,
         include: [String] = []
     ) async throws -> JSONValue {
-        var query: [URLQueryItem] = include.map { URLQueryItem(name: "include[]", value: $0) }
+        let query: [URLQueryItem] = include.map { URLQueryItem(name: "include[]", value: $0) }
         return try await send("GET", "responses/\(responseID)", query: query.isEmpty ? nil : query)
     }
 

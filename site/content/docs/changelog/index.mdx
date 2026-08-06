@@ -7,6 +7,329 @@ icon: History
 <Steps>
 
 <Step>
+### 0.3.0
+
+<ReleaseHero
+  version="0.3.0"
+  kicker="Out now"
+  title="The long-run"
+  accent="release."
+>
+  Agents break deep into a run, not on the first call. This release is about
+  what happens at step fifty: staying inside the context window without
+  forgetting what you learned, stopping when you say so, asking before acting,
+  and signing in to hosted MCP servers. Plus a terminal you can watch it all
+  happen in, Meta's Muse Spark as a new provider, and a large expansion of the
+  Anthropic, OpenAI, Google, xAI, and Bedrock platform surfaces.
+</ReleaseHero>
+
+<Cards>
+  <Card title="Compaction" href="/docs/context-management" description="Keep a long run inside the window without losing the goal, the decisions, or the dead ends." />
+  <Card title="Timeouts and approvals" href="/docs/timeouts-and-approvals" description="Bound a run at every scope. Signed approvals that fail closed." />
+  <Card title="Terminal UI" href="/docs/terminal-ui" description="Run any Agent as an interactive terminal chat in one call." />
+  <Card title="MCP OAuth" href="/docs/mcp" description="Sign in to hosted MCP servers. A 401 refreshes and retries." />
+  <Card title="Runtime context" href="/docs/runtime-context" description="Server state through a run, never in the prompt." />
+  <Card title="Providers" href="/docs/providers" description="OpenAI multi-agent, Google's Interactions API, Meta and Bedrock mantle." />
+</Cards>
+
+#### Terminal UI
+
+- New `AITUI` library product, the `@ai-sdk/tui` analog, on macOS and Linux.
+  `runAgentTUI(title:agent:)` (or `transport:`) runs an interactive terminal
+  chat over any `Agent` or `ChatTransport`.
+- What you get in it: streamed markdown, tool cards, reasoning sections,
+  scrollback, tokens/sec and context readouts, and `y`/`n` tool approvals.
+- `TerminalPartDisplayMode` (`.full` / `.collapsed` / `.autoCollapsed` /
+  `.hidden`) for tools and reasoning, and `ResponseStatisticsMode` for the
+  statistics readout.
+- The renderers are public and pure: `MarkdownTerminalRenderer`,
+  `TranscriptRenderer`, `AgentTUIModel`, and `AgentTUIRenderer` work without
+  a terminal, so transcripts can be rendered anywhere.
+- `swift run tui-demo` is a runnable demo backed by real models only:
+  `--ollama` (local, no API key), `--openai`, `--anthropic`, `--on-device`, or
+  `--pcc`. With no flag it picks the first usable backend and otherwise prints
+  how to get one.
+- The demo verifies an Ollama server is reachable and the model is actually
+  pulled before starting (`--list` shows what is), and its weather tool calls a
+  live API, so tool cards show real data.
+
+#### Context management
+
+- `compaction:` on `generateText` / `streamText` / `Agent` keeps a long run
+  inside the window without discarding what it learned.
+- It compresses in proportion to how cheaply information can be recovered.
+  Bulk tool output is re-fetchable, so it compresses hard. A decision's
+  rationale exists only in the transcript, so it is kept.
+- Three layers, the first two free: structural pinning (system messages, the
+  goal, failed tool results, the last N steps), a live-reference scan that pins
+  older messages still mentioned by the working set, then one `generateObject`
+  call over the remainder using the run's own model.
+- `CompactedContext` is a required-field schema rather than a prose summary, so
+  `goal`, `decisions`, and `deadEnds` cannot be silently dropped.
+- Dead ends are the entry most summarizers lose and the costliest, since an
+  agent that forgets a failed approach retries it. Compaction is re-entrant, so
+  a long run converges instead of growing.
+- `Tool.idempotent()` marks a tool whose result may be replaced by a pointer
+  (`[omitted: … re-run the tool to retrieve it]`). The tool *call* is always
+  kept, since it records what was tried. Off by default, so tools with side
+  effects keep their output in full.
+- `CompactionBudget` allocates fractions of the context window instead of a
+  single threshold, so one config behaves correctly across model tiers.
+- `LanguageModel` gained `contextWindow`, with a default implementation that
+  resolves from the model id, so every provider pack reports a window with no
+  per-provider wiring and a budget left unset sizes itself to the model.
+  `ModelContextWindows.register(_:for:)` covers local, fine-tuned, and newly
+  released ids.
+- Unknown ids fall back to 128K, deliberately below the common 200K:
+  under-estimating compacts early, while over-estimating overflows the window
+  and fails the request.
+- `pruneMessages` is the lossy counterpart: it drops old tool traffic (and,
+  for `UIMessage` histories, reasoning) outright, with no model call.
+
+#### Timeouts and approvals
+
+- `timeout:` on `generateText` / `streamText` / `Agent`:
+  `GenerationTimeout(total:step:firstChunk:chunk:tool:tools:)`. The stall
+  timers count only content-bearing output, so keep-alive metadata cannot
+  hold a dead stream open. Tool timeouts return a tool error the model can
+  react to; the others throw `AIError.timedOut`.
+- `toolApproval:` moves approval policy onto the call: a dictionary literal,
+  `ToolApprovalPolicy.perTool`, or a closure over the whole tool call with
+  the message history.
+- Decisions are `.notApplicable` / `.approved` / `.denied` / `.userApproval`,
+  each with an optional reason, and land on `step.approvalDecisions`.
+  `prepareCall` can return one, and per-tool `needsApproval` still works as the
+  fallback.
+- `toolApprovalSecret:` HMAC-signs approval requests and verifies them
+  fail-closed on replay, so a client cannot forge an approval for a tool it
+  was never offered. Signatures ride the UI-message wire, and `ChatSession`
+  and the terminal UI carry them back automatically.
+
+#### MCP: OAuth for hosted servers
+
+- `MCPOAuthSession` ties an `MCPOAuthClientProvider` to one server and is
+  passed to a transport as `auth:`. Both `MCPHTTPTransport` and
+  `MCPSSETransport` accept it.
+- It attaches the access token, refreshes on a `401`, and retries once.
+  Otherwise it throws `AIError.authorizationRequired(url:)` with the URL to
+  open; hand the browser's redirect back to `complete(callbackURL:)` to finish.
+- Full MCP discovery: the `401`'s `WWW-Authenticate` names the
+  protected-resource metadata document (RFC 9728), which names the
+  authorization server — commonly a different host than the MCP server, so
+  the single-host shortcut most clients take does not work.
+- Well-known URLs follow RFC 8414, keeping the issuer path (`/tenant/acme` →
+  `/.well-known/oauth-authorization-server/tenant/acme`) with the origin-only
+  form as fallback.
+- PKCE `S256` (and a clear error rather than a silent downgrade to `plain`
+  where CryptoKit is unavailable), the RFC 8707 `resource` indicator on the
+  authorization, token, and refresh requests, `state` verification on the
+  callback, and dynamic client registration when the server advertises a
+  `registration_endpoint`.
+- `MCPOAuthFlow` exposes each step (`discover`, `registerClientIfNeeded`,
+  `startAuthorization`, `handleCallback`, `refresh`) for apps that drive the
+  flow themselves.
+
+#### Runtime context and tools
+
+- `runtimeContext:` carries server-side state through a run without touching
+  the prompt: readable in `prepareStep`, replaceable from there, and recorded
+  on every `StepResult`.
+- Tools can validate their `toolsContext` entry with
+  `.withContextSchema(_:)` and compute their description from it with
+  `.describing { context in ... }`.
+- `Tool.dynamic(...)` marks runtime-schema tools, carried as `dynamic` on the
+  tool chunks so a UI can tell them from compiled-in tools. MCP tools are
+  dynamic automatically.
+- `TelemetrySettings` adds a per-call function id, metadata, an off switch,
+  and allow-lists (`includeRuntimeContext` / `includeToolsContext`) for which
+  context keys reach spans. Nothing from either context is recorded unless you
+  name it.
+- `filterActiveTools`, `generateId` / `createIdGenerator`, and `GeneratedFile`
+  accessors (`base64`, `bytes`) on image results.
+- New provider-defined tools: OpenAI `imageGeneration`, `shell`,
+  `localShell`, `applyPatch`, `customTool`, `toolSearch`,
+  `programmaticToolCalling`, and hosted `mcpServer`; Anthropic `advisor`,
+  `toolSearchBm25`, `toolSearchRegex`; Google `vertexRagStore`.
+
+#### Files and remote content
+
+- `uploadFile(api:data:filename:)` works with any `FileUploadAPI` and returns
+  an `UploadedFile` you can turn into a message part. `providerReference` on
+  `FileContent` / `ImageContent` reaches OpenAI as `file_id` and Anthropic as
+  a `file` source, and is ignored by providers it was not minted for.
+- Models declare URL support with `supportsRemoteURL(_:mediaType:)`, and the
+  loop downloads and inlines what a model cannot fetch.
+
+#### Middleware
+
+- `wrapEmbeddingModel`, `wrapImageModel`, and `wrapProvider` extend
+  middleware beyond language models.
+- `.extractJson()` strips markdown code fences; `.addToolInputExamples()`
+  folds a tool's new `inputExamples` into its description.
+
+#### Transcription
+
+- `streamTranscribe` transcribes live audio through
+  `StreamingTranscriptionModel`, implemented for Deepgram's live WebSocket
+  API. Interim text arrives as `.partialTranscript` and finalized text as
+  `.transcriptDelta`, so revisions never double-count.
+- `transcribe` sniffs MP4/M4A, WAV, Ogg, FLAC, and MP3 from the audio bytes
+  when the declared media type is generic.
+- `resampleAudio`, `encodePCM16`, and `decodePCM16` for feeding realtime and
+  streaming audio paths.
+
+#### Chat UI and transports
+
+- `TextStreamChatTransport`, `consumeStream`, `validateUIMessages` /
+  `safeValidateUIMessages`, and
+  `lastAssistantMessageIsCompleteWithToolCalls` /
+  `lastAssistantMessageIsCompleteWithApprovalResponses`.
+- `HTTPChatTransport` gained `prepareSendMessagesRequest` and
+  `prepareReconnectToStreamRequest` for per-request headers, body, and URL.
+
+#### Anthropic
+
+- Every tool now carries Anthropic's optional definition properties through
+  `Tool.loading(_:)`: `strict` (schema-validated tool names and inputs),
+  `defer_loading` (keep a tool out of the cached system prompt until tool
+  search surfaces it), `allowed_callers` (restrict a tool to the code
+  execution sandbox), `cache_control` breakpoints, and
+  `eager_input_streaming`. `.ephemeralCache()` and `.codeExecutionOnly()`
+  are shorthands.
+- `inputExamples` now ship natively as `input_examples` on Anthropic instead
+  of being folded into the description.
+- `AnthropicModel.Tools.mcpToolset(...)` wires the MCP connector, with the
+  `mcp-client-2025-11-20` beta header applied automatically. Beta headers
+  also cover the newest tool versions (`web_search_20260318`,
+  `web_fetch_20260318` / `20260309`, `code_execution_20260521`).
+- `AnthropicBatchClient` (Message Batches: create, list, retrieve, streamed
+  JSONL `results`, cancel, delete), `AnthropicModelsClient`, and
+  `AnthropicModel.countTokens(_:tools:system:)`.
+
+#### OpenAI
+
+- **Multi-agent** on the Responses API: pass
+  `multiAgent: OpenAIModel.MultiAgent(maxConcurrentSubagents: 3)` and the
+  model spawns and coordinates a subagent tree itself. The
+  `responses_multi_agent=v1` beta header is added for you.
+- Hosted `multi_agent_call` items (spawn, message, follow-up, wait, interrupt,
+  list) surface as provider metadata rather than tool calls, so your app must
+  not execute them. Ordinary function calls from any agent in the tree still
+  run through the normal tool loop.
+- `OpenAIConversationsClient` for the Conversations API: create (from
+  messages or raw items), fetch, update metadata, list/add/delete items.
+- `OpenAIVectorStoresClient` including `search`, file attach/detach, and
+  expiry windows, the store side of `file_search`.
+- `OpenAIBatchClient`, `OpenAIContainersClient`, and
+  `OpenAIModerationsClient` (which returns the flagged categories, sorted).
+- `OpenAIVideoModel` for Sora: create, poll to completion, download content,
+  plus `remix`, `list`, and `delete`.
+
+#### Google
+
+- `GoogleInteractionsModel` speaks Google's newer `POST /v1beta/interactions`
+  surface, the one they say all new models, tools, and agentic features now
+  launch on, while `generateContent` (still `GoogleModel`) is labelled legacy.
+- Messages map to `input` steps, thought steps arrive as `.reasoningDelta`,
+  and the SSE `step.start` / `step.delta` / `step.stop` protocol decodes into
+  ordinary stream parts.
+- Server-side state via `previousInteractionID`, `background: true` for long
+  runs, and `create` / `retrieve` / `cancel` / `delete`. **`store` defaults to
+  `false`** even though Google's API defaults it to `true`, so nothing is
+  retained unless you opt in.
+- Agents share the endpoint: `GoogleInteractionsModel.agent(…)` reaches Deep
+  Research and Antigravity, with `agentConfig` replacing `generation_config`.
+- `GoogleEmbeddingModel` (`embedContent` / `batchEmbedContents`, task types,
+  output dimensionality). Gemini embeddings were previously unsupported.
+- Media: `GoogleImageModel` (Imagen), `GoogleVideoModel` (Veo, with operation
+  polling and URI download), `GoogleSpeechModel` (Gemini TTS), and
+  `GoogleMusicModel` (Lyria).
+- Platform: `GoogleFilesClient` (resumable upload plus `waitUntilActive`),
+  `GoogleCachedContentClient` (explicit context caching),
+  `GoogleBatchClient` (`batchGenerateContent` and `asyncBatchEmbedContent`),
+  and `GoogleModel.countTokens`.
+
+#### xAI
+
+- **Fixed:** `XaiCollectionsClient` sent collection management to
+  `api.x.ai`, but xAI serves it from `https://management-api.x.ai/v1` behind
+  a separate Management API key. The client now holds both endpoints and
+  routes each call, and `addDocument` puts the file id in the path
+  (`POST /v1/collections/{id}/documents/{file_id}`) as documented.
+- Collections gained `update` (PUT), `listDocuments`, `document`,
+  `documents` (`:batchGet`), and `regenerateIndices` (PATCH), and every
+  management call takes `teamID:` plus paging and filter parameters.
+- New `XaiModelsClient` for `/v1/models` and the richer `language-models`,
+  `image-generation-models`, and `video-generation-models` catalogs.
+- New `XaiPlatformClient`: `apiKeyInfo()`, `tokenizeText`, SIP phone numbers
+  (`/v2/phone-numbers`), `referCall` / `hangUpCall`, and the TTS voice and
+  custom-voice catalogs.
+- `XaiBatchClient` gained `addRequests` and `cancel`; `XaiFilesClient` gained
+  list paging/filtering and `update`; `XaiModel` gained `retrieveResponse`
+  and `deleteResponse`.
+
+#### Amazon Bedrock
+
+- `BedrockMantleProvider` targets Bedrock's `bedrock-mantle` endpoint:
+  `responses(_:)` and `chat(_:)` for the OpenAI-compatible surfaces and
+  `messages(_:)` for the Anthropic Messages surface, with Bedrock API-key
+  auth. `BedrockModel` continues to serve `bedrock-runtime` and SigV4.
+
+#### Meta
+
+- `MetaModel` runs Muse Spark on Meta Model API's Responses endpoint
+  (`MetaModel.chat(...)` for chat completions). Key from `MODEL_API_KEY`,
+  base URL `https://api.meta.ai/v1`, and a 1M-token context window.
+- `MetaModel.Tools.webSearch(searchContextSize:userLocation:)` and
+  `.toolSearch(...)` are the server-side search-grounding and deferred
+  tool-loading path; citations arrive as `StreamPart.source`.
+- Muse Spark always reasons, so `.none` is dropped rather than sent (the
+  API answers it with a 400), and unlike OpenAI's reasoning models it still
+  accepts `temperature` and `topP`, so both are forwarded.
+
+#### Fixes
+
+- Bedrock silently dropped URL-only images and files. Models now declare what
+  they can fetch, and the loop inlines the rest.
+- A reused tool call id started a new UI tool part instead of overwriting the
+  finished one.
+- Cancelling during tool execution aborts the run rather than surfacing as a
+  tool error.
+- Tool results from resumed approvals appear in `steps` and
+  `result.toolResults`, not only in `messages`.
+
+#### Errors and utilities
+
+- New `AIError` cases: `timedOut`, `invalidToolInput`, `invalidToolContext`,
+  `missingToolResults`, `toolCallRepairFailed`, `invalidToolApproval`,
+  `unsupportedFunctionality`, and `authorizationRequired`.
+- `JSONValue` gained an `Int` subscript, so `value["input"]?[0]?["type"]`
+  works for array elements.
+
+#### Docs
+
+- A new [API reference](/docs/reference) covering every public function and the
+  types you construct directly. Signatures are extracted from `Sources/AI` on
+  every build, so they cannot drift from the code.
+- New [Foundations](/docs/foundations) section for the ideas the rest of the
+  docs used to assume: the loop, models and tokens, prompts and messages, tool
+  calling, and streaming.
+- New [Troubleshooting](/docs/troubleshooting) section, one page per symptom,
+  named after what you would actually search for.
+- The catch-all Advanced page is gone, split into
+  [Context management](/docs/context-management),
+  [Middleware](/docs/middleware), [Runtime context](/docs/runtime-context),
+  [Telemetry](/docs/telemetry), and [Errors and retries](/docs/errors).
+  Runtime context, telemetry, and history handling had been nested under
+  Middleware, which is not what any of them are.
+- New pages for the [terminal UI](/docs/terminal-ui) and for
+  [timeouts and approvals](/docs/timeouts-and-approvals), and the agent skill
+  gained references for context management, the terminal UI, timeouts and
+  approvals, and runtime context.
+
+</Step>
+
+<Step>
 ### 0.2.0
 
 #### New providers
@@ -39,6 +362,16 @@ icon: History
   OpenAI logprobs, Anthropic cache-creation tokens, Bedrock guardrail traces,
   and Perplexity images / related questions all collect on
   `result.providerMetadata`.
+
+#### MCP
+
+- `MCPStdioTransport` launches a local server as a subprocess and speaks
+  newline-delimited JSON-RPC over its pipes; `MCPSSETransport` speaks the
+  legacy HTTP+SSE protocol. Both bound each call with `requestTimeout`.
+- `MCPHTTPTransport` carries `mcp-session-id` sessions, and `tools()` follows
+  `nextCursor` pagination.
+- `fingerprintTools` / `detectToolDrift` catch a server that changes its tool
+  definitions after you approved them (rug pull).
 
 #### Core
 

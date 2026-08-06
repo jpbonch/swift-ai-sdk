@@ -28,15 +28,29 @@ The wrapped model forwards `provider`/`modelID` from the base and is a drop-in r
 
 ```swift
 static func extractReasoning(tag: String = "think") -> LanguageModelMiddleware
+static func extractJson() -> LanguageModelMiddleware
 static func simulateStreaming() -> LanguageModelMiddleware
 static func defaultSettings(temperature: Double? = nil, topP: Double? = nil, maxOutputTokens: Int? = nil, providerOptions: JSONValue? = nil) -> LanguageModelMiddleware
+static func addToolInputExamples(prefix: String = "Input Examples:") -> LanguageModelMiddleware
 static func cache(store: any LanguageModelCache = InMemoryLanguageModelCache()) -> LanguageModelMiddleware
 ```
 
 - `extractReasoning(tag:)` — a `wrapStream` hook that lifts `<tag>...</tag>` spans out of text deltas and re-emits them as `.reasoningDelta`. Handles tags split across delta boundaries.
 - `simulateStreaming()` — a `wrapStream` hook that buffers the entire inner stream, then replays it with adjacent text/reasoning deltas coalesced. Turns a non-streaming endpoint into a streaming one.
 - `defaultSettings(...)` — a `transformRequest` hook that fills in values only when unset: `temperature`/`topP` when `nil`, `maxOutputTokens` only when it still equals the library default (1024), and deep-merges `providerOptions` as defaults under any request-supplied overrides.
+- `extractJson()` — a `wrapStream` hook that strips markdown code fences (` ```json … ``` `) from text deltas so structured parsing sees raw JSON. Streams incrementally, holding back only a possible partial fence and trailing whitespace.
+- `addToolInputExamples(prefix:)` — a `transformRequest` hook that appends each tool's `inputExamples` to its description, for providers with no native field. Anthropic takes `input_examples` natively, so it does not need this.
 - `cache(store:)` — a `wrapCall` hook; see below.
+
+## Other model kinds
+
+```swift
+wrapEmbeddingModel(model:middleware:)   // EmbeddingModelMiddleware(transformInput:wrapEmbed:), .defaultSettings(maxBatchSize:transform:)
+wrapImageModel(model:middleware:)       // ImageModelMiddleware(transformRequest:wrapGenerate:)
+wrapProvider(provider:languageModelMiddleware:embeddingModelMiddleware:imageModelMiddleware:)  // -> ProviderRegistry.Provider
+```
+
+`wrapProvider` wraps each model kind a registry provider exposes, leaving speech, transcription, and reranking factories untouched.
 
 ## Caching
 

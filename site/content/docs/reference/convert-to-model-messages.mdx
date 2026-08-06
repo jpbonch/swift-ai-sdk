@@ -1,0 +1,34 @@
+---
+title: "convertToModelMessages"
+description: "Convert UI messages to model messages."
+---
+
+Maps the `UIMessage` shape a client sends into the `Message` values a model
+takes, flattening UI-only parts. This is the first thing a server route does
+with an incoming chat body.
+
+```swift
+let messages = convertToModelMessages(body.messages)
+```
+
+## Signature
+
+```swift
+func convertToModelMessages(
+    _ uiMessages: [UIMessage]
+) -> [Message]
+```
+
+Defined in `Sources/AI/Transport/StreamBridge.swift`.
+
+## Parameters
+
+<Parameters name="convertToModelMessages" />
+
+## Returns
+
+A `[Message]`.
+
+## See also
+
+- [Streaming protocol](/docs/streaming-protocol)

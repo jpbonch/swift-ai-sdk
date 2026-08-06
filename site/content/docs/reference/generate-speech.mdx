@@ -1,0 +1,44 @@
+---
+title: "generateSpeech"
+description: "Synthesize speech from text."
+---
+
+Turns text into audio using a speech model. `voice`, `speed`, and
+`outputFormat` are passed through to the provider when it supports them.
+
+```swift
+let result = try await generateSpeech(
+  model: OpenAISpeechModel("gpt-4o-mini-tts"),
+  text: "Your order has shipped.",
+  voice: "alloy"
+)
+```
+
+## Signature
+
+```swift
+func generateSpeech(
+    model: any SpeechModel,
+    text: String,
+    voice: String? = nil,
+    instructions: String? = nil,
+    speed: Double? = nil,
+    outputFormat: String? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) async throws -> GenerateSpeechResult
+```
+
+Defined in `Sources/AI/Core/SpeechGeneration.swift`.
+
+## Parameters
+
+<Parameters name="generateSpeech" />
+
+## Returns
+
+`GenerateSpeechResult` with the `audio` file and `providerMetadata`.
+
+## See also
+
+- [Speech generation](/docs/speech-generation)

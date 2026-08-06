@@ -83,6 +83,45 @@ the same `headers` and `requestTimeout` options as the HTTP transport:
 MCPSSETransport(url: URL(string: "https://legacy.example.com/sse")!)
 ```
 
+## OAuth
+
+Hosted MCP servers usually sit behind OAuth rather than a static bearer token.
+Hand a transport an `MCPOAuthSession` and it attaches the access token, refreshes
+it when the server answers `401`, and tells you when a browser round-trip is
+needed. Both `MCPHTTPTransport` and `MCPSSETransport` take an `auth:` argument:
+
+```swift
+let serverURL = URL(string: "https://mcp.notion.com/mcp")!
+let auth = MCPOAuthSession(serverURL: serverURL, provider: myProvider)
+let mcp = MCPClient(transport: MCPHTTPTransport(url: serverURL, auth: auth))
+
+do {
+  let tools = try await mcp.tools()
+} catch AIError.authorizationRequired(let url) {
+  // open `url`, then hand back the URL the browser was redirected to:
+  try await auth.complete(callbackURL: redirected)
+}
+```
+
+`myProvider` is your `MCPOAuthClientProvider`: it owns the redirect URI, the
+client metadata used for dynamic client registration, and storage for tokens,
+the registered client, the PKCE verifier, and the CSRF `state`. Persist tokens
+and client information if you want sign-in to survive a relaunch.
+
+The session performs the full MCP discovery chain on demand: the `401`'s
+`WWW-Authenticate` header names the protected-resource metadata document, which
+names the authorization server — commonly a different host than the MCP server
+itself. Authorization uses PKCE (`S256`), sends the RFC 8707 `resource`
+indicator on the authorization, token, and refresh requests, and verifies
+`state` on the callback before exchanging the code. When the authorization
+server advertises a `registration_endpoint`, the client registers itself
+dynamically the first time; otherwise seed your provider with credentials you
+obtained out of band.
+
+`MCPOAuthFlow` exposes the same steps individually — `discover`,
+`registerClientIfNeeded`, `startAuthorization`, `handleCallback`, `refresh` — if
+you want to drive the flow yourself.
+
 ## Detecting tool-definition drift (rug pull)
 
 A compromised or malicious MCP server can change its tool definitions *after*
@@ -107,4 +146,4 @@ order, so a server reordering schema keys does not read as drift.
 ## Examples
 
 See [27-MCPTools.swift](https://github.com/zaidmukaddam/swift-ai-sdk/blob/main/Examples/Features/27-MCPTools.swift)
-for runnable HTTP, stdio, legacy SSE, and rug-pull examples.
+for runnable HTTP, stdio, legacy SSE, OAuth, and rug-pull examples.

@@ -43,9 +43,15 @@ public func generateText(
     onStepFinish: OnStepFinish? = nil,
     onFinish: (@Sendable (GenerateTextResult) async -> Void)? = nil,
     onError: (@Sendable (Error) async -> Void)? = nil,
-    repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async -> ToolCall?)? = nil,
+    repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async throws -> ToolCall?)? = nil,
     output: JSONValue? = nil,
-    maxRetries: Int = 2
+    maxRetries: Int = 2,
+    toolApproval: ToolApprovalPolicy? = nil,
+    toolApprovalSecret: String? = nil,
+    timeout: GenerationTimeout? = nil,
+    runtimeContext: JSONValue? = nil,
+    telemetry: TelemetrySettings? = nil,
+    compaction: Compaction? = nil
 ) async throws -> GenerateTextResult {
     let parameters = GenerationParameters(
         model: model,
@@ -71,7 +77,13 @@ public func generateText(
         prepareStep: prepareStep,
         onStepFinish: onStepFinish,
         repairToolCall: repairToolCall,
-        maxRetries: maxRetries
+        maxRetries: maxRetries,
+        toolApproval: toolApproval,
+        toolApprovalSecret: toolApprovalSecret,
+        timeout: timeout,
+        runtimeContext: runtimeContext,
+        telemetry: telemetry,
+        compaction: compaction
     )
 
     do {
@@ -80,7 +92,12 @@ public func generateText(
             attributes: [
                 "ai.model.provider": .string(model.provider),
                 "ai.model.id": .string(model.modelID)
-            ],
+            ].merging(
+                telemetry?.attributes(
+                    runtimeContext: runtimeContext, toolsContext: toolsContext
+                ) ?? [:]
+            ) { _, new in new },
+            enabled: telemetry?.isEnabled ?? true,
             endAttributes: { (result: GenerateTextResult) in
                 [
                     "ai.usage.inputTokens": .number(Double(result.usage.inputTokens)),
@@ -90,7 +107,9 @@ public func generateText(
                 ]
             }
         ) {
-            let outcome = try await runGenerationLoop(parameters) { _ in }
+            let outcome = try await withTimeout(timeout?.total, scope: .total) {
+                try await runGenerationLoop(parameters) { _ in }
+            }
             var built = GenerateTextResult(outcome: outcome)
             if output != nil {
                 if let data = built.text.data(using: .utf8),

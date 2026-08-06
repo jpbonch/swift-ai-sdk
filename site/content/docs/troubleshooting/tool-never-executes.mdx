@@ -1,0 +1,29 @@
+---
+title: "A tool is offered but never runs"
+description: "The model calls a tool and the loop stops instead of executing it."
+---
+
+## Symptom
+
+The result comes back with a `toolCall` in `toolCalls` but no matching entry in
+`toolResults`, and the loop ended.
+
+## Why it happens
+
+The tool has no executor. A `Tool` built without an `execute` closure is a
+client-side tool by design: the SDK surfaces the call and expects your app to
+run it and post the result back. `hasExecutor` is `false` for these.
+
+Provider-defined tools behave the same way from the loop's side, since they run
+on the provider rather than locally.
+
+## Fix
+
+If the tool was meant to run locally, give it an `execute` closure. If it is
+genuinely client-side, handle the call in your UI and send a result back before
+resuming, then check with
+[`lastAssistantMessageIsCompleteWithToolCalls`](/docs/reference/last-assistant-message-is-complete-with-tool-calls).
+
+## See also
+
+- [Tools](/docs/tools)

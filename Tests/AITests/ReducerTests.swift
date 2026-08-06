@@ -108,6 +108,29 @@ final class ReducerTests: XCTestCase {
         reducer.apply(.abort())
         XCTAssertTrue(reducer.isFinished)
     }
+
+    func testReusedToolCallIDDoesNotInheritTheOldInputBuffer() {
+        var reducer = UIMessageReducer(messageID: "m")
+        reducer.apply(.toolInputStart(
+            toolCallID: "c1", toolName: "search", providerExecuted: nil, dynamic: nil
+        ))
+        reducer.apply(.toolInputDelta(toolCallID: "c1", inputTextDelta: "{\"q\":\"one\"}"))
+        reducer.apply(.toolOutputAvailable(
+            toolCallID: "c1", output: .string("done"), providerExecuted: nil,
+            preliminary: nil, dynamic: nil
+        ))
+
+        reducer.apply(.toolInputStart(
+            toolCallID: "c1", toolName: "search", providerExecuted: nil, dynamic: nil
+        ))
+        reducer.apply(.toolInputDelta(toolCallID: "c1", inputTextDelta: "{\"q\":\"two\"}"))
+
+        let inputs = reducer.message.parts.compactMap { part -> JSONValue? in
+            guard case .tool(let tool) = part else { return nil }
+            return tool.input
+        }
+        XCTAssertEqual(inputs.last?["q"]?.stringValue, "two")
+    }
 }
 
 final class PartialJSONTests: XCTestCase {

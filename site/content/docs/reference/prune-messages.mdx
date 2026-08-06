@@ -1,0 +1,75 @@
+---
+title: "pruneMessages"
+description: "Drop old tool traffic and reasoning from a history."
+---
+
+A pure function that deletes old tool calls, tool results, and (for
+`UIMessage` histories) reasoning from a conversation. No model call, no cost.
+
+Pruning is lossy by design. When the goal, the decisions, or the failed
+approaches need to survive, use `compaction:` instead, which summarizes rather
+than deletes.
+
+```swift
+let trimmed = pruneMessages(
+  messages,
+  toolCalls: .beforeLastMessages(6, tools: ["search"])
+)
+```
+
+## Signature
+
+```swift
+func pruneMessages(
+    _ messages: [UIMessage],
+    reasoning: PruneScope = .none,
+    toolCalls: [PruneToolCalls] = [],
+    emptyMessages: PruneEmptyMessages = .remove
+) -> [UIMessage]
+```
+
+Defined in `Sources/AI/Core/PruneMessages.swift`.
+
+## Parameters
+
+<Parameters name="pruneMessages" />
+
+## Overloads
+
+3 other forms of this function exist:
+
+```swift
+func pruneMessages(
+    _ messages: [Message],
+    toolCalls: PruneToolCalls,
+    emptyMessages: PruneEmptyMessages = .remove
+) -> [Message]
+```
+
+```swift
+func pruneMessages(
+    _ messages: [Message],
+    toolCalls: [PruneToolCalls] = [],
+    emptyMessages: PruneEmptyMessages = .remove
+) -> [Message]
+```
+
+```swift
+func pruneMessages(
+    _ messages: [UIMessage],
+    reasoning: PruneScope = .none,
+    toolCalls: PruneToolCalls,
+    emptyMessages: PruneEmptyMessages = .remove
+) -> [UIMessage]
+```
+
+
+## Returns
+
+A new array of the same type, with the pruned entries removed. Dropping a
+tool call also drops its result and any approval response.
+
+## See also
+
+- [Context management](/docs/context-management)
+- [filterActiveTools](/docs/reference/filter-active-tools)

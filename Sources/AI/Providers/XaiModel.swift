@@ -193,6 +193,38 @@ public struct XaiModel: LanguageModel {
         return try JSONDecoder().decode(JSONValue.self, from: data)
     }
 
+    public func retrieveResponse(_ responseID: String) async throws -> JSONValue {
+        try await responseLifecycle("GET", responseID)
+    }
+
+    @discardableResult
+    public func deleteResponse(_ responseID: String) async throws -> JSONValue {
+        try await responseLifecycle("DELETE", responseID)
+    }
+
+    private func responseLifecycle(
+        _ method: String, _ responseID: String
+    ) async throws -> JSONValue {
+        let config: ResponsesConfig
+        switch backend {
+        case .responses(let c): config = c
+        case .chat(_, let c): config = c
+        }
+        var urlRequest = URLRequest(
+            url: config.baseURL.appendingPathComponent("responses/\(responseID)")
+        )
+        urlRequest.httpMethod = method
+        if !config.apiKey.isEmpty {
+            urlRequest.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        for (field, value) in config.headers { urlRequest.setValue(value, forHTTPHeaderField: field) }
+        let (data, response) = try await config.urlSession.data(for: urlRequest)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw AIError.http(status: http.statusCode, body: String(decoding: data, as: UTF8.self))
+        }
+        return data.isEmpty ? .object([:]) : try JSONDecoder().decode(JSONValue.self, from: data)
+    }
+
     @available(
         *, deprecated,
         message: "xAI deprecated Live Search (search_parameters). Use the provider-executed tools XaiModel.Tools.webSearch() / xSearch() instead."

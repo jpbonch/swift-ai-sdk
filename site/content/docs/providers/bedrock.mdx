@@ -1,7 +1,65 @@
 ---
 title: Amazon Bedrock
-description: The Converse API over AWS event-stream framing, with API-key or SigV4 auth.
+description: The bedrock-mantle endpoint (Responses, Chat Completions, Messages) and the Converse API over AWS event-stream framing.
 ---
+
+Bedrock has two inference endpoints, and the library covers both.
+`BedrockMantleProvider` targets **`bedrock-mantle`**, the endpoint AWS
+recommends for new applications: OpenAI-compatible Responses and Chat
+Completions plus the Anthropic Messages API, all behind a Bedrock API key.
+`BedrockModel` targets **`bedrock-runtime`**, the Converse API, which is
+where guardrails, cross-region inference profiles, and SigV4 signing live.
+
+## bedrock-mantle
+
+```swift
+let bedrock = BedrockMantleProvider(region: "us-east-1")
+
+let responses = bedrock("openai.gpt-oss-120b")
+let chat = bedrock.chat("deepseek.v3-2")
+let messages = bedrock.messages("anthropic.claude-sonnet-4-6-v1")
+```
+
+`callAsFunction` (and `languageModel(_:)`) returns the Responses-API model,
+which is the endpoint's recommended surface. All three factories report
+`provider == "bedrock"` for telemetry.
+
+The key comes from `AWS_BEARER_TOKEN_BEDROCK` or an explicit `apiKey:`. The
+OpenAI-compatible surfaces send it as `Authorization: Bearer`, the Messages
+surface as `x-api-key` with `anthropic-version: 2023-06-01` — the same
+headers AWS documents. Base URLs derive from the region
+(`https://bedrock-mantle.{region}.api.aws`, then `/v1` or `/anthropic/v1`)
+unless you pass `baseURL:`; a `baseURL` that already ends in `/v1` or
+`/anthropic/v1` is normalized, so a gateway origin works either way.
+
+Mantle model ids carry no region prefix — there are no cross-region
+inference profiles on this endpoint. Use `anthropic.claude-sonnet-4-6-v1`,
+not `us.anthropic.claude-sonnet-4-6-v1`.
+
+| Capability | Notes |
+| --- | --- |
+| Auth | Bedrock API key only; SigV4 requests go through `BedrockModel` |
+| Stateful turns | `store` / `previous_response_id` via `providerOptions` on the Responses model |
+| Structured output | Forced-tool JSON mode, which Mantle accepts; `output_config.format` is rejected by the endpoint |
+| Guardrails, prompt routing, CRIS | `bedrock-runtime` only |
+
+Responses-API reasoning effort rides `providerOptions` here, because the
+unified `reasoning:` knob keys off OpenAI's own model-id shapes:
+
+```swift
+let result = try await generateText(
+  model: bedrock("openai.gpt-oss-120b"),
+  messages: [.user("Plan the migration.")],
+  providerOptions: ["reasoning": ["effort": "high"], "store": false]
+)
+```
+
+`bedrock.chat(...)` and `bedrock.messages(...)` take the unified
+`reasoning:` parameter directly — chat completions map it to
+`reasoning_effort`, and Claude ids map to the same thinking tiers as the
+[Anthropic pack](/docs/providers/anthropic).
+
+## bedrock-runtime
 
 ```swift
 let model = BedrockModel(
@@ -27,7 +85,7 @@ let model = BedrockModel(
 )
 ```
 
-## Features
+### Features
 
 - Tools, structured output, and vision over the Converse API.
 - Responses stream in AWS's binary event-stream framing; the library
@@ -36,7 +94,7 @@ let model = BedrockModel(
   reads; guardrail `trace` and `cacheWriteInputTokens` arrive on
   `result.providerMetadata["bedrock"]`.
 
-## Models
+### Models
 
 The `reasoning` parameter translates by model-id family:
 

@@ -1,0 +1,48 @@
+---
+title: "resampleAudio"
+description: "Resample PCM audio between sample rates."
+---
+
+Converts linear PCM from one sample rate to another, which realtime sessions
+need when a microphone's rate does not match what the provider expects.
+
+```swift
+let resampled = resampleAudio(samples, from: 48_000, to: 24_000)
+```
+
+## Signature
+
+```swift
+func resampleAudio(
+    _ input: [Float],
+    inputRate: Int,
+    outputRate: Int
+) -> [Float]
+```
+
+Defined in `Sources/AI/Realtime/AudioResampling.swift`.
+
+## Parameters
+
+<Parameters name="resampleAudio" />
+
+## Overloads
+
+1 other form of this function exists:
+
+```swift
+func resampleAudio(
+    _ input: Data,
+    inputRate: Int,
+    outputRate: Int
+) -> Data
+```
+
+
+## Returns
+
+The resampled samples.
+
+## See also
+
+- [Realtime voice](/docs/realtime)

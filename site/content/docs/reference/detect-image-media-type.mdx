@@ -1,0 +1,40 @@
+---
+title: "detectImageMediaType"
+description: "Read an image's media type from its magic bytes."
+---
+
+Sniffs the first twelve bytes of image data and returns the media type it
+finds: PNG, JPEG, GIF, WebP, HEIC, or BMP. Nothing else is inspected, so the
+answer is only as good as the header.
+
+`generateImage` already uses this to label results a provider returns without
+a media type. Reach for it directly when you have raw bytes from somewhere else
+— a file on disk, a download, a pasteboard — and need to tag them before
+sending them to a model.
+
+```swift
+let mediaType = detectImageMediaType(bytes) ?? "image/png"
+```
+
+## Signature
+
+```swift
+func detectImageMediaType(
+    _ image: Data
+) -> String?
+```
+
+Defined in `Sources/AI/Core/ImageGeneration.swift`.
+
+## Parameters
+
+<Parameters name="detectImageMediaType" />
+
+## Returns
+
+The media type as a `String`, or `nil` when the header matches none of
+the recognized formats or the data is shorter than twelve bytes.
+
+## See also
+
+- [Image generation](/docs/image-generation)

@@ -1,0 +1,34 @@
+---
+title: "detectAudioMediaType"
+description: "Identify an audio format from its bytes."
+---
+
+Sniffs the container from the leading bytes and returns a media type. Used
+internally by [`transcribe`](/docs/reference/transcribe) when the declared
+type is generic; exposed because it is useful on its own.
+
+```swift
+let mediaType = detectAudioMediaType(data)  // "audio/mp4", "audio/wav", ...
+```
+
+## Signature
+
+```swift
+func detectAudioMediaType(
+    _ audio: Data
+) -> String?
+```
+
+Defined in `Sources/AI/Core/Transcription.swift`.
+
+## Parameters
+
+<Parameters name="detectAudioMediaType" />
+
+## Returns
+
+A media type `String`, or `nil` when nothing matches.
+
+## See also
+
+- [transcribe](/docs/reference/transcribe)

@@ -1,0 +1,49 @@
+---
+title: "generateImage"
+description: "Generate or edit images."
+---
+
+Generates images from a prompt, or edits an existing one when you pass image
+data. `n` asks for several at once; when it exceeds what the provider allows
+per call, the request is split into batches automatically.
+
+```swift
+let result = try await generateImage(
+  model: OpenAIImageModel("gpt-image-2"),
+  prompt: "A red bicycle against a white wall",
+  size: "1024x1024"
+)
+let png = result.images[0].bytes
+```
+
+## Signature
+
+```swift
+func generateImage(
+    model: any ImageModel,
+    prompt: String,
+    images: [ImageContent] = [],
+    n: Int = 1,
+    size: String? = nil,
+    aspectRatio: String? = nil,
+    seed: Int? = nil,
+    providerOptions: JSONValue? = nil,
+    maxImagesPerCall: Int? = nil,
+    maxRetries: Int = 2
+) async throws -> GenerateImageResult
+```
+
+Defined in `Sources/AI/Core/ImageGeneration.swift`.
+
+## Parameters
+
+<Parameters name="generateImage" />
+
+## Returns
+
+`GenerateImageResult` with `images` as `GeneratedFile` values, exposing
+`base64` and `bytes`, plus `providerMetadata`.
+
+## See also
+
+- [Image generation](/docs/image-generation)

@@ -1,0 +1,58 @@
+---
+title: "Compaction"
+description: "Automatic context compaction: when to compress a conversation, and how hard."
+---
+
+Long conversations eventually outgrow the model's context window. Compaction
+watches the token count and, past a threshold, replaces the older turns with a
+structured summary so the run can keep going.
+
+It compresses in proportion to how cheaply something can be recovered. A tool
+result you can fetch again is worth less than a decision you can't re-derive.
+And a dead end, meaning something already tried that didn't work, is the most
+valuable thing to keep and the first thing a naive summariser throws away.
+
+Pass it to `generateText`, `streamText`, or an `Agent` and it runs itself.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  messages: history,
+  tools: tools,
+  compaction: Compaction()
+)
+```
+
+## Declaration
+
+```swift
+public struct Compaction
+```
+
+Defined in `Sources/AI/Core/Compaction.swift`.
+
+## Initializer
+
+```swift
+init(
+    budget: CompactionBudget = CompactionBudget(),
+    pinning: CompactionPinning = .default,
+    keepLastSteps: Int = 4,
+    onCompact: (@Sendable (CompactionEvent) -> Void)? = nil
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var budget` | `CompactionBudget` | — |
+| `var pinning` | `CompactionPinning` | — |
+| `var keepLastSteps` | `Int` | — |
+| `var onCompact` | `(@Sendable (CompactionEvent) -> Void)?` | — |
+
+## See also
+
+- [Context management](/docs/context-management)
+- [CompactedContext](/docs/reference/compacted-context)
+- [pruneMessages](/docs/reference/prune-messages)

@@ -1,0 +1,39 @@
+---
+title: "wrapProvider"
+description: "Wrap every model a provider produces."
+---
+
+Applies middleware at the provider level, so every model the provider hands
+out is already wrapped. Saves repeating the same wrapping at each call site.
+
+```swift
+let provider = wrapProvider(
+  provider: myProvider,
+  languageModelMiddleware: [.cache()]
+)
+```
+
+## Signature
+
+```swift
+func wrapProvider(
+    provider: ProviderRegistry.Provider,
+    languageModelMiddleware: [LanguageModelMiddleware] = [],
+    embeddingModelMiddleware: [EmbeddingModelMiddleware] = [],
+    imageModelMiddleware: [ImageModelMiddleware] = []
+) -> ProviderRegistry.Provider
+```
+
+Defined in `Sources/AI/Core/ModelMiddleware.swift`.
+
+## Parameters
+
+<Parameters name="wrapProvider" />
+
+## Returns
+
+A `WrappedProvider`.
+
+## See also
+
+- [Middleware](/docs/middleware)

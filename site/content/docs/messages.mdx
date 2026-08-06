@@ -1,8 +1,12 @@
 ---
 title: Messages and multimodal
 description: Message construction, content parts, vision input, and JSONValue.
-icon: Images
+icon: Messages
 ---
+
+For why history is a list at all, what each role is for, and why tool calls and
+results must stay paired, see
+[prompts and messages](/docs/foundations/prompts-and-messages).
 
 ## Messages
 
@@ -44,10 +48,18 @@ let result = try await generateText(
 )
 ```
 
-Both `ImageContent` and `FileContent` take inline `data` or a remote
-`url`. In chat UIs, user attachments arrive as file parts and
-`convertToModelMessages` decodes data URLs into inline bytes
-automatically.
+Both `ImageContent` and `FileContent` take inline `data`, a remote `url`, or
+a `providerReference` from [`uploadFile`](/docs/files-and-skills). In chat
+UIs, user attachments arrive as file parts and `convertToModelMessages`
+decodes data URLs into inline bytes automatically.
+
+Not every model can fetch a URL itself — Bedrock's Converse API, for one,
+takes bytes only. Models declare this with `supportsRemoteURL(_:mediaType:)`,
+and the loop downloads and inlines anything a model cannot fetch before the
+request goes out, so the same message works everywhere instead of silently
+losing its attachment. Only `http(s)` URLs are fetched (a `file://` URL
+raises rather than being read), downloads are capped at 32 MB, and `data:`
+URLs and provider references are left untouched.
 
 ## Content parts
 

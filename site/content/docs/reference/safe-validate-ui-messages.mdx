@@ -1,0 +1,38 @@
+---
+title: "safeValidateUIMessages"
+description: "Validate UI messages without throwing."
+---
+
+The non-throwing form of
+[`validateUIMessages`](/docs/reference/validate-ui-messages), returning a
+result you can branch on. Use it at a request boundary where you would rather
+return a 400 than surface an error.
+
+```swift
+switch safeValidateUIMessages(body.messages) {
+case .success(let messages): try await handle(messages)
+case .failure(let error): return .badRequest(error)
+}
+```
+
+## Signature
+
+```swift
+func safeValidateUIMessages(
+    _ messages: [UIMessage]
+) -> Result<[UIMessage], Error>
+```
+
+Defined in `Sources/AI/Transport/TextStreamChatTransport.swift`.
+
+## Parameters
+
+<Parameters name="safeValidateUIMessages" />
+
+## Returns
+
+A `UIMessageValidation` describing success or the failure.
+
+## See also
+
+- [Chat UI](/docs/chat-ui)

@@ -25,11 +25,21 @@ public struct ToolApproval: Sendable, Hashable {
     public var id: String
     public var approved: Bool?
     public var reason: String?
+    public var isAutomatic: Bool?
+    public var signature: String?
 
-    public init(id: String, approved: Bool? = nil, reason: String? = nil) {
+    public init(
+        id: String,
+        approved: Bool? = nil,
+        reason: String? = nil,
+        isAutomatic: Bool? = nil,
+        signature: String? = nil
+    ) {
         self.id = id
         self.approved = approved
         self.reason = reason
+        self.isAutomatic = isAutomatic
+        self.signature = signature
     }
 }
 
@@ -256,6 +266,12 @@ extension UIPart {
                 var payload: [String: JSONValue] = ["id": .string(approval.id)]
                 if let approved = approval.approved { payload["approved"] = .bool(approved) }
                 if let reason = approval.reason { payload["reason"] = .string(reason) }
+                if let isAutomatic = approval.isAutomatic {
+                    payload["isAutomatic"] = .bool(isAutomatic)
+                }
+                if let signature = approval.signature {
+                    payload["signature"] = .string(signature)
+                }
                 object["approval"] = .object(payload)
             }
             return .object(object)
@@ -373,7 +389,9 @@ private extension ToolUIPart {
             approval = ToolApproval(
                 id: id,
                 approved: payload["approved"]?.boolValue,
-                reason: payload["reason"]?.stringValue
+                reason: payload["reason"]?.stringValue,
+                isAutomatic: payload["isAutomatic"]?.boolValue,
+                signature: payload["signature"]?.stringValue
             )
         }
         self.init(

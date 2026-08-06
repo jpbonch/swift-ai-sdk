@@ -1,0 +1,180 @@
+---
+title: "API reference"
+description: "Every public function and type, with signatures generated from the source."
+icon: BookOpen
+---
+
+Each page documents one symbol: what it does, when to reach for it, and its
+exact signature.
+
+Signatures here are extracted from `Sources/AI` on every build, so they cannot
+drift from the code. The prose around them is written by hand. Everything else
+in the docs teaches a concept or walks a task; this section is for looking
+something up.
+
+## Functions
+
+### Text
+
+<Cards>
+  <Card title="generateText" href="/docs/reference/generate-text" description="Generate text and run the tool loop to completion, returning one finished result." />
+  <Card title="streamText" href="/docs/reference/stream-text" description="Stream text, reasoning, tool calls, and results as they arrive." />
+  <Card title="streamTextDeltas" href="/docs/reference/stream-text-deltas" description="A minimal text-only stream, without the tool loop." />
+</Cards>
+
+### Structured output
+
+<Cards>
+  <Card title="generateEnum" href="/docs/reference/generate-enum" description="Pick exactly one value from a fixed set." />
+  <Card title="generateJSON" href="/docs/reference/generate-json" description="Generate free-form JSON with no schema." />
+  <Card title="generateObject" href="/docs/reference/generate-object" description="Generate a typed value validated against a JSON schema." />
+  <Card title="generateObjectArray" href="/docs/reference/generate-object-array" description="Generate a typed array, validating each element against a schema." />
+  <Card title="streamObject" href="/docs/reference/stream-object" description="Stream a structured object as its fields fill in." />
+</Cards>
+
+### Embeddings and ranking
+
+<Cards>
+  <Card title="cosineSimilarity" href="/docs/reference/cosine-similarity" description="Cosine similarity between two vectors." />
+  <Card title="embed" href="/docs/reference/embed" description="Embed a single string into a vector." />
+  <Card title="embedMany" href="/docs/reference/embed-many" description="Embed many strings, batching automatically." />
+  <Card title="rerank" href="/docs/reference/rerank" description="Reorder candidate documents against a query." />
+</Cards>
+
+### Images, audio, and video
+
+<Cards>
+  <Card title="detectAudioMediaType" href="/docs/reference/detect-audio-media-type" description="Identify an audio format from its bytes." />
+  <Card title="detectImageMediaType" href="/docs/reference/detect-image-media-type" description="Read an image's media type from its magic bytes." />
+  <Card title="generateImage" href="/docs/reference/generate-image" description="Generate or edit images." />
+  <Card title="generateSpeech" href="/docs/reference/generate-speech" description="Synthesize speech from text." />
+  <Card title="generateVideo" href="/docs/reference/generate-video" description="Generate video, polling until the job completes." />
+  <Card title="streamTranscribe" href="/docs/reference/stream-transcribe" description="Transcribe live audio as it arrives." />
+  <Card title="transcribe" href="/docs/reference/transcribe" description="Transcribe an audio file to text." />
+</Cards>
+
+### Loop control
+
+<Cards>
+  <Card title="hasToolCall" href="/docs/reference/has-tool-call" description="Stop once a named tool has been called." />
+  <Card title="isLoopFinished" href="/docs/reference/is-loop-finished" description="Stop when the model stops asking for tools." />
+  <Card title="isStepCount" href="/docs/reference/is-step-count" description="Stop on an exact step number." />
+  <Card title="stepCountIs" href="/docs/reference/step-count-is" description="Stop the tool loop after a number of steps." />
+</Cards>
+
+### Context
+
+<Cards>
+  <Card title="filterActiveTools" href="/docs/reference/filter-active-tools" description="Narrow a tool list to a named subset." />
+  <Card title="pruneMessages" href="/docs/reference/prune-messages" description="Drop old tool traffic and reasoning from a history." />
+</Cards>
+
+### Middleware and providers
+
+<Cards>
+  <Card title="customProvider" href="/docs/reference/custom-provider" description="Build a provider from your own model lookups." />
+  <Card title="wrapEmbeddingModel" href="/docs/reference/wrap-embedding-model" description="Wrap an embedding model with middleware." />
+  <Card title="wrapImageModel" href="/docs/reference/wrap-image-model" description="Wrap an image model with middleware." />
+  <Card title="wrapLanguageModel" href="/docs/reference/wrap-language-model" description="Wrap a language model with middleware." />
+  <Card title="wrapProvider" href="/docs/reference/wrap-provider" description="Wrap every model a provider produces." />
+</Cards>
+
+### UI and transports
+
+<Cards>
+  <Card title="consumeStream" href="/docs/reference/consume-stream" description="Drain a stream to completion, discarding output." />
+  <Card title="convertToModelMessages" href="/docs/reference/convert-to-model-messages" description="Convert UI messages to model messages." />
+  <Card title="lastAssistantMessageIsCompleteWithApprovalResponses" href="/docs/reference/last-assistant-message-is-complete-with-approval-responses" description="Check whether pending tool approvals have been answered." />
+  <Card title="lastAssistantMessageIsCompleteWithToolCalls" href="/docs/reference/last-assistant-message-is-complete-with-tool-calls" description="Check whether the last assistant turn has all its tool results." />
+  <Card title="readUIMessageStream" href="/docs/reference/read-ui-message-stream" description="Turn a UI message stream into message snapshots." />
+  <Card title="safeValidateUIMessages" href="/docs/reference/safe-validate-ui-messages" description="Validate UI messages without throwing." />
+  <Card title="smoothStream" href="/docs/reference/smooth-stream" description="Re-chunk a text stream by word or line." />
+  <Card title="validateUIMessages" href="/docs/reference/validate-ui-messages" description="Validate incoming UI messages, throwing on bad input." />
+</Cards>
+
+### MCP
+
+<Cards>
+  <Card title="detectToolDrift" href="/docs/reference/detect-tool-drift" description="Compare tool fingerprints against an approved baseline." />
+  <Card title="fingerprintTools" href="/docs/reference/fingerprint-tools" description="Snapshot tool definitions so changes can be detected." />
+</Cards>
+
+### Audio buffers
+
+<Cards>
+  <Card title="decodePCM16" href="/docs/reference/decode-pcm16" description="Decode 16-bit PCM into samples." />
+  <Card title="encodePCM16" href="/docs/reference/encode-pcm16" description="Encode samples as 16-bit PCM." />
+  <Card title="resampleAudio" href="/docs/reference/resample-audio" description="Resample PCM audio between sample rates." />
+</Cards>
+
+### Utilities
+
+<Cards>
+  <Card title="createIdGenerator" href="/docs/reference/create-id-generator" description="Build an id generator with a prefix and alphabet." />
+  <Card title="generateId" href="/docs/reference/generate-id" description="Generate an id in the SDK default format." />
+  <Card title="getRealtimeToolDefinitions" href="/docs/reference/get-realtime-tool-definitions" description="Convert tools into realtime session definitions." />
+  <Card title="uploadFile" href="/docs/reference/upload-file" description="Upload a file to a provider and get a reference back." />
+</Cards>
+
+## Types
+
+The types you construct or inspect directly. Everything else in the public
+API is plumbing these hand back to you.
+
+### Building blocks
+
+<Cards>
+  <Card title="Agent" href="/docs/reference/agent" description="A model, its instructions, and its tools bundled into one reusable object." />
+  <Card title="ContentPart" href="/docs/reference/content-part" description="One piece of a message: text, an image, a file, a tool call, a result, or reasoning." />
+  <Card title="Message" href="/docs/reference/message" description="One turn in a conversation: a role and the content parts that make it up." />
+  <Card title="Tool" href="/docs/reference/tool" description="A function the model can call, with a name, a description, and a parameter schema." />
+</Cards>
+
+### Results
+
+<Cards>
+  <Card title="GenerateTextResult" href="/docs/reference/generate-text-result" description="Everything one finished generateText call produced." />
+  <Card title="StreamTextResult" href="/docs/reference/stream-text-result" description="A live stream of one generation, plus the finished result once it lands." />
+</Cards>
+
+### Configuration
+
+<Cards>
+  <Card title="CompactedContext" href="/docs/reference/compacted-context" description="The structured summary compaction produces: goal, decisions, dead ends, and facts." />
+  <Card title="Compaction" href="/docs/reference/compaction" description="Automatic context compaction: when to compress a conversation, and how hard." />
+  <Card title="GenerationTimeout" href="/docs/reference/generation-timeout" description="Deadlines for a generation: total wall clock, and how long a silent stream may stall." />
+  <Card title="StopCondition" href="/docs/reference/stop-condition" description="When the tool loop should stop taking another step." />
+  <Card title="TelemetrySettings" href="/docs/reference/telemetry-settings" description="What the SDK records about a run, and where it sends it." />
+  <Card title="ToolApprovalPolicy" href="/docs/reference/tool-approval-policy" description="Which tool calls need a human yes before they run." />
+  <Card title="ToolChoice" href="/docs/reference/tool-choice" description="Whether the model may call tools, must call one, or must call a specific one." />
+</Cards>
+
+### UI
+
+<Cards>
+  <Card title="ChatSession" href="/docs/reference/chat-session" description="An observable chat you can bind a SwiftUI view to." />
+</Cards>
+
+### Values
+
+<Cards>
+  <Card title="JSONValue" href="/docs/reference/json-value" description="A JSON value: object, array, string, number, boolean, or null." />
+  <Card title="MCPClient" href="/docs/reference/mcp-client" description="A connection to an MCP server, and the tools it exposes." />
+</Cards>
+
+## Conventions
+
+Swift argument labels are shown as written, so `_` means the parameter is
+called positionally. A parameter with no default is **required**; everything
+else can be omitted.
+
+`any LanguageModel` and `any AIToolProtocol` appear throughout because the SDK
+takes existentials rather than generics on those positions, which is what lets
+you swap a provider without changing a call site.
+
+Type pages list stored properties, initializers, and methods, including any
+added in a `public extension`. Computed properties and protocol conformances
+are left out.
+
+For the error cases these functions throw, see the
+[errors reference](/docs/reference/errors).

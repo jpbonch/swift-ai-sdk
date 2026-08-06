@@ -52,7 +52,7 @@ function Hero() {
       </h1>
       <p className="hero-enter hero-enter-3 mt-6 max-w-xl text-pretty text-lg leading-relaxed text-fd-muted-foreground">
         Streaming chat, agents that call your code, live voice, and models
-        that run on the phone itself. One package for iOS and macOS.
+        that run on the phone itself. One package, every Apple platform.
       </p>
       <div className="hero-enter hero-enter-4 mt-8 flex flex-wrap items-center justify-center gap-6">
         <Link href="/docs" className={pillButton}>
@@ -128,7 +128,7 @@ function Bento() {
       <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ProvidersTile />
         <TestsTile />
-        <SchemaTile />
+        <AgentsTile />
         <ChatTile />
         <RealtimeTile />
       </div>
@@ -142,13 +142,13 @@ const providerLogos: ProviderLogo[] = [
   { name: 'OpenAI', src: '/logos/openai.svg', dark: '/logos/openai-dark.svg' },
   { name: 'Anthropic', src: '/logos/anthropic.svg', dark: '/logos/anthropic-dark.svg' },
   { name: 'Google Gemini', src: '/logos/gemini.svg' },
+  { name: 'Meta', src: '/logos/meta.svg' },
   { name: 'xAI', src: '/logos/xai.svg', dark: '/logos/xai-dark.svg' },
   { name: 'Amazon Bedrock', src: '/logos/aws.svg', dark: '/logos/aws-dark.svg' },
   { name: 'Azure OpenAI', src: '/logos/azure.svg' },
   { name: 'Groq', src: '/logos/groq.svg' },
   { name: 'Mistral', src: '/logos/mistral.svg' },
   { name: 'DeepSeek', src: '/logos/deepseek.svg' },
-  { name: 'Perplexity', src: '/logos/perplexity.svg' },
   { name: 'Cohere', src: '/logos/cohere.svg' },
   { name: 'Ollama', src: '/logos/ollama.svg', dark: '/logos/ollama-dark.svg' },
   { name: 'OpenRouter', src: '/logos/openrouter.svg', dark: '/logos/openrouter-dark.svg' },
@@ -218,23 +218,24 @@ function TestsTile() {
   );
 }
 
-function SchemaTile() {
+function AgentsTile() {
   return (
     <div className={tile}>
       <h3 className="text-xl font-semibold tracking-tight">
-        JSON you can actually trust.
+        Agents that survive step fifty.
       </h3>
       <p className="mt-2 text-pretty text-sm leading-relaxed text-fd-muted-foreground">
-        Describe the shape, get typed Codable values back. Bad output turns
-        into a thrown error, not a crash in your view code.
+        The loop runs your tools, asks before the risky ones, and compacts its
+        own history so a long run stays inside the window.
       </p>
       <div className="mt-auto pt-4">
         <pre className="overflow-x-auto rounded-lg border border-fd-border p-4 font-mono text-[11.5px] leading-[1.7] text-fd-muted-foreground">
           <code>
-            Schema.object([{'\n'}
-            {'  '}<Str>&quot;name&quot;</Str>: .string(),{'\n'}
-            {'  '}<Str>&quot;pop&quot;</Str>: .integer(){'\n'}
-            ])
+            Agent({'\n'}
+            {'  '}model: model,{'\n'}
+            {'  '}tools: [search],{'\n'}
+            {'  '}compaction: Compaction(){'\n'}
+            )
           </code>
         </pre>
       </div>

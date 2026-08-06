@@ -338,3 +338,44 @@ private struct FlakyTranscriptionModel: TranscriptionModel {
         return TranscriptionModelResponse(text: "recovered")
     }
 }
+
+final class DetectImageMediaTypeTests: XCTestCase {
+
+    private func iso(_ brand: String) -> Data {
+        var bytes: [UInt8] = [0, 0, 0, 0x20]
+        bytes += Array("ftyp".utf8)
+        bytes += Array(brand.utf8)
+        bytes += [0, 0, 0, 0]
+        return Data(bytes)
+    }
+
+    func testHeicBrandsAreDetected() {
+        for brand in ["heic", "heix", "mif1", "msf1", "hevc"] {
+            XCTAssertEqual(detectImageMediaType(iso(brand)), "image/heic", brand)
+        }
+    }
+
+    func testAvifIsNotReportedAsHeic() {
+        XCTAssertEqual(detectImageMediaType(iso("avif")), "image/avif")
+    }
+
+    func testVideoContainersAreNotReportedAsImages() {
+        for brand in ["isom", "mp42", "qt  ", "M4V "] {
+            XCTAssertNil(detectImageMediaType(iso(brand)), brand)
+        }
+    }
+
+    func testShortButUnambiguousHeadersAreDetected() {
+        XCTAssertEqual(detectImageMediaType(Data("GIF87a".utf8)), "image/gif")
+        XCTAssertEqual(
+            detectImageMediaType(Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])),
+            "image/png"
+        )
+        XCTAssertEqual(detectImageMediaType(Data([0x42, 0x4D])), "image/bmp")
+    }
+
+    func testEmptyAndUnknownDataReturnNil() {
+        XCTAssertNil(detectImageMediaType(Data()))
+        XCTAssertNil(detectImageMediaType(Data([0x00, 0x01, 0x02, 0x03])))
+    }
+}

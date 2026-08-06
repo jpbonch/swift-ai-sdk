@@ -1,0 +1,35 @@
+---
+title: "AIError.authorizationRequired from an MCP server"
+description: "A hosted MCP server needs an OAuth sign-in that could not be refreshed."
+---
+
+## Symptom
+
+`AIError.authorizationRequired(url:)` when listing or calling MCP tools.
+
+## Why it happens
+
+The server returned a 401 and the session had no token, or had one it could not
+refresh. The URL in the error is the sign-in page.
+
+This is the normal first-run path for a hosted server, not necessarily a
+failure.
+
+## Fix
+
+Open the URL, then hand the redirect back:
+
+```swift
+let tokens = try await auth.complete(callbackURL: redirect)
+```
+
+If it recurs on every run, your `MCPOAuthClientProvider` is not persisting
+tokens and client registration. Both need to survive a relaunch.
+
+If sign-in itself fails, the usual cause is `saveState` / `state` left as the
+no-op defaults, which makes callback verification silently pass and then fail
+later.
+
+## See also
+
+- [MCP](/docs/mcp)

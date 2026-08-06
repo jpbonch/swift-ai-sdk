@@ -1,0 +1,79 @@
+---
+title: Prompts and messages
+description: Why history is a list, what roles are for, and why the model has no memory.
+icon: MessageSquare
+---
+
+The model has no memory. Each request is answered on its own, from nothing but
+what you send. A conversation that appears to remember earlier turns does so
+because you resent them.
+
+That one fact explains most of how prompts are shaped.
+
+## Prompt or messages
+
+A one-shot question needs no history:
+
+```swift
+let result = try await generateText(
+  model: model,
+  system: "Answer in one sentence.",
+  prompt: "What is the tallest mountain?"
+)
+```
+
+Anything conversational needs the list:
+
+```swift
+let result = try await generateText(model: model, messages: history)
+```
+
+`prompt` is shorthand for a single user message. Use whichever matches what you
+have. You can't pass both.
+
+## Roles
+
+Every message carries a role, and the model treats them differently.
+
+A system message sets standing behaviour: who the assistant is, what it must not
+do, what format to answer in. It carries more weight than anything a user says,
+so put your rules here rather than in the last user message, where they compete
+with whatever else is going on.
+
+A user message is input from the person. An assistant message is what the model
+produced, and you send those back so it can see what it already said. A tool
+message carries the result of a tool the model asked for, and you rarely write
+one yourself since [the loop](/docs/foundations/the-loop) produces them.
+
+## Messages are made of parts
+
+A message isn't a string. It's a role plus a list of content parts, which is
+what lets one turn hold a sentence and an image, or an assistant turn hold both
+its reasoning and the tool calls it settled on.
+
+Text and images are the parts you'll construct yourself. Tool calls, tool
+results, and reasoning get produced for you.
+
+## Calls and results must pair
+
+Every tool call in an assistant message needs a matching tool result before that
+conversation can go back to the model. Providers reject histories where a call
+is left dangling.
+
+This is easy to break by accident. Trimming an old message, persisting a
+conversation mid-flight, or a client-side tool whose result never came back will
+all do it. If you see
+[`missingToolResults`](/docs/troubleshooting/missing-tool-results), a pair got
+split.
+
+## Longer isn't better
+
+A prompt with every edge case spelled out ends up competing with itself for the
+model's attention. Say what the output should look like, give one example if the
+shape is unusual, and stop.
+
+## Next
+
+- [Messages](/docs/messages) covers building and persisting them in code
+- [Tool calling](/docs/foundations/tool-calling) covers where tool messages come from
+- [Models and tokens](/docs/foundations/models-and-tokens) covers what all this history costs

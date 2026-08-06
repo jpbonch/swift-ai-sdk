@@ -1,0 +1,44 @@
+---
+title: "embedMany"
+description: "Embed many strings, batching automatically."
+---
+
+Embeds an array of strings, splitting into batches when the list exceeds what
+the provider accepts in one request. Order is preserved, so the vector at index
+`i` belongs to the value at index `i`.
+
+Set `maxBatchSize` to stay under a provider's limit or to ease off a rate
+limit.
+
+```swift
+let result = try await embedMany(
+  model: OpenAIEmbeddingModel("text-embedding-3-small"),
+  values: documents
+)
+```
+
+## Signature
+
+```swift
+func embedMany(
+    model: any EmbeddingModel,
+    values: [String],
+    maxBatchSize: Int? = nil,
+    maxRetries: Int = 2
+) async throws -> EmbedManyResult
+```
+
+Defined in `Sources/AI/Core/Embeddings.swift`.
+
+## Parameters
+
+<Parameters name="embedMany" />
+
+## Returns
+
+`EmbedManyResult` with `embeddings` in input order and combined `usage`.
+
+## See also
+
+- [Embeddings](/docs/embeddings)
+- [embed](/docs/reference/embed)

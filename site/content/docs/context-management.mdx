@@ -1,0 +1,154 @@
+---
+title: Context management
+description: Keep a long run inside the context window with pruning, compaction, and model context windows.
+icon: Scissors
+---
+
+Three tools for keeping a long run inside the window, in increasing order of
+cost and fidelity: pruning deletes, compaction summarizes, and `contextWindow`
+tells both of them how much room they actually have.
+
+For what a context window is and why a long run fills one, see
+[models and tokens](/docs/foundations/models-and-tokens).
+
+## Pruning history
+
+`pruneMessages` drops old reasoning and tool traffic before a long loop grows
+past the window. It is a pure function, so you can call it in `prepareStep`
+or before each turn:
+
+```swift
+let trimmed = pruneMessages(
+  messages,
+  toolCalls: .beforeLastMessages(6, tools: ["search"])
+)
+
+let uiTrimmed = pruneMessages(
+  uiMessages, reasoning: .beforeLastMessage, toolCalls: .all
+)
+```
+
+Scopes are `.all`, `.beforeLastMessage`, `.beforeLastMessages(n)`, and
+`.none`; dropping a tool call also drops its result. Reasoning pruning applies
+to `UIMessage` histories, since `Message` carries no reasoning parts.
+
+Pruning is lossy by design: it deletes. When you need the *substance* of the
+history to survive, use compaction instead.
+
+## Compaction
+
+`compaction:` on `generateText`, `streamText`, and `Agent` keeps a long run
+inside the context window without throwing away what the run has learned. It
+triggers on its own when the history outgrows the working-set budget:
+
+```swift
+let agent = Agent(
+  model: AnthropicModel("claude-opus-5"),
+  instructions: "…",
+  tools: [readFile, searchCode, sendEmail],
+  compaction: Compaction(
+    budget: .init(workingSet: 0.5, compacted: 0.2),
+    keepLastSteps: 4,
+    onCompact: { event in
+      print("compacted \(event.estimatedTokensBefore) → \(event.estimatedTokensAfter)")
+    }
+  )
+)
+```
+
+The organizing rule is **compress in proportion to how cheaply the information
+can be recovered**. Bulk tool output can be re-fetched, so it compresses hard;
+a decision's rationale exists only in the transcript, so it is preserved.
+
+Three layers run in order, and the first two cost nothing:
+
+1. **Structural pinning.** System messages, the first user message (the goal),
+   and any message carrying a failed tool result are lifted out of the
+   compressible span. `keepLastSteps` messages stay verbatim as the working set.
+2. **Live-reference scan.** An older message that shares an identifier (a file
+   path, a symbol, an id) with the working set is still live, so it is pinned.
+   The thing you are actively working on survives without a model deciding.
+3. **Typed extraction.** One `generateObject` call over what remains, using the
+   run's own model, producing a `CompactedContext`.
+
+Layers 1 and 2 are the `pinning:` option set: `.firstUserMessage`, `.errors`,
+`.liveReferences`, all three by `.default`. Drop one to compact more
+aggressively.
+
+`onCompact` receives a `CompactionEvent` carrying `messagesBefore` /
+`messagesAfter`, `estimatedTokensBefore` / `estimatedTokensAfter`, the extracted
+`context`, and `pointerizedTools`, the tools whose output became a pointer.
+
+### What survives
+
+`CompactedContext` is a schema, not a prose summary. `goal`, `decisions`, and
+`deadEnds` are required fields, so extraction cannot silently drop them:
+
+| Field | Holds |
+| --- | --- |
+| `goal` | The original task, restated. Required, so it is never compressed away. |
+| `constraints` | Requirements and prohibitions the user stated. |
+| `decisions` | Each choice made, with the reason it was made. |
+| `establishedFacts` | Findings so far, with the tool that produced them. |
+| `deadEnds` | Approaches already tried and why they failed. |
+| `openQuestions` | What still blocks the task. |
+| `artifacts` | Files and records by reference, never inlined. |
+
+Dead ends are the entry most summarizers lose and the most expensive loss: an
+agent that forgets a failed approach retries it.
+
+Compaction is re-entrant: the previous `CompactedContext` feeds the next
+extraction, so a long run converges instead of growing.
+
+### Idempotent tools
+
+A tool result is replaced by a pointer only when its tool is marked idempotent:
+
+```swift
+let readFile = Tool(name: "read_file", description: "…", parameters: schema) { args in
+  …
+}
+.idempotent()
+```
+
+`read_file`'s 4KB body becomes `[omitted: read_file returned ~4200 characters —
+re-run the tool to retrieve it]`. The **tool call itself stays verbatim** even
+then, because it records what was already tried. Tools are not idempotent by
+default, so anything with side effects (a payment, a send) keeps its output in
+full.
+
+### Budget
+
+`CompactionBudget` allocates fractions of the context window rather than setting
+one threshold. Leave `contextWindow` unset and it comes from the model:
+
+```swift
+Compaction(budget: .init(contextWindow: 32_000, workingSet: 0.5))
+```
+
+So one config behaves correctly across models: an Opus run gets a 500K working
+set and a Haiku run gets 100K.
+
+## Context windows
+
+`LanguageModel` exposes `contextWindow`. The default implementation resolves it
+from the model id, so every provider pack reports a window without any
+per-provider wiring:
+
+```swift
+AnthropicModel("claude-opus-5").contextWindow   // 1_000_000
+XaiModel("grok-4").contextWindow                // 256_000
+```
+
+Unknown model ids fall back to `ModelContextWindows.conservativeDefault`
+(128K), deliberately below the common 200K. Under-estimating compacts early;
+over-estimating overflows the window and fails the request.
+
+Register a window for a local, fine-tuned, or newly released model:
+
+```swift
+ModelContextWindows.register(64_000, for: "my-finetune")
+```
+
+Registered values beat the built-in table. A model type that knows its own
+window can override the property instead.

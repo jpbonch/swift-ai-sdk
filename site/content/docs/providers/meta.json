@@ -12,6 +12,7 @@
     "azure",
     "bedrock",
     "xai",
+    "meta",
     "groq",
     "deepseek",
     "mistral",

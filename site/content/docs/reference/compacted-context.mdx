@@ -1,0 +1,63 @@
+---
+title: "CompactedContext"
+description: "The structured summary compaction produces: goal, decisions, dead ends, and facts."
+---
+
+What compaction extracts from the turns it compresses, and what gets rendered
+back into the conversation in their place.
+
+The shape is deliberate. Free-form summaries lose exactly the things that are
+expensive to rediscover, so this pins them into named fields: what the run is
+trying to do, what has been decided, what has been established, and what has
+already been tried and failed.
+
+You rarely build one by hand. Read it when you want to see what compaction kept
+and what it let go.
+
+```swift
+let compaction = Compaction(
+  onCompact: { event in
+    print("kept \(event.context.decisions.count) decisions")
+    print("dropped \(event.messagesCompacted) messages")
+  }
+)
+```
+
+## Declaration
+
+```swift
+public struct CompactedContext
+```
+
+Defined in `Sources/AI/Core/Compaction.swift`.
+
+## Initializer
+
+```swift
+init(
+    goal: String,
+    constraints: [String] = [],
+    decisions: [Decision] = [],
+    establishedFacts: [Fact] = [],
+    deadEnds: [DeadEnd] = [],
+    openQuestions: [String] = [],
+    artifacts: [Artifact] = []
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var goal` | `String` | — |
+| `var constraints` | `[String]` | — |
+| `var decisions` | `[Decision]` | — |
+| `var establishedFacts` | `[Fact]` | — |
+| `var deadEnds` | `[DeadEnd]` | — |
+| `var openQuestions` | `[String]` | — |
+| `var artifacts` | `[Artifact]` | — |
+
+## See also
+
+- [Context management](/docs/context-management)
+- [Compaction](/docs/reference/compaction)

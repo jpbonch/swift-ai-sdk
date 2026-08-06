@@ -37,12 +37,13 @@ them with files available to your app.
 | [ElevenLabs](Providers/ElevenLabs/) | Speech generation and transcription |
 | [Fireworks](Providers/Fireworks/) | Text and streaming; tools, structured output, vision, and reasoning |
 | [Gladia](Providers/Gladia/) | Transcription |
-| [Google](Providers/Google/) | Text and reasoning; tools and grounding; structured output; vision and files; Vertex AI; realtime |
+| [Google](Providers/Google/) | Text and reasoning; tools and grounding; structured output; vision and files; Vertex AI; realtime; Interactions API, embeddings, files, caching, batch, and media |
 | [Groq](Providers/Groq/) | Text and reasoning; tools, structured output, vision, and transcription |
 | [Hume](Providers/Hume/) | Speech generation |
 | [LMNT](Providers/LMNT/) | Speech generation |
 | [LM Studio](Providers/LMStudio/) | Local text and streaming; tools, structured output, vision, and reasoning |
 | [Luma](Providers/Luma/) | Image and video generation |
+| [Meta](Providers/Meta/) | Muse Spark text and reasoning; search grounding; stateless reasoning replay; chat completions |
 | [Mistral](Providers/Mistral/) | Text and streaming; tools, structured output, vision, and reasoning |
 | [Ollama](Providers/Ollama/) | Local text and streaming; reasoning and tools |
 | [OpenAI](Providers/OpenAI/) | Responses and Chat Completions; reasoning; tools; structured output; vision; embeddings; images; speech; transcription; realtime; files |
@@ -88,6 +89,9 @@ them with files available to your app.
 | [25-ReliabilityAndOutput.swift](Features/25-ReliabilityAndOutput.swift) | `repairToolCall`, `repairText`, and structured `output` alongside tools |
 | [26-SmoothingAndMetadata.swift](Features/26-SmoothingAndMetadata.swift) | Stream smoothing and reading provider metadata |
 | [27-MCPTools.swift](Features/27-MCPTools.swift) | MCP tools over HTTP, stdio, and legacy SSE, plus rug-pull drift detection |
+| [28-TerminalUI.swift](Features/28-TerminalUI.swift) | `runAgentTUI`: a terminal chat over a local agent or a remote transport, display modes, and standalone transcript rendering |
+| [29-TimeoutsApprovalsAndPruning.swift](Features/29-TimeoutsApprovalsAndPruning.swift) | Generation timeouts, `toolApproval` policies, signed approvals, `pruneMessages`, model middleware, hosted tools, and live transcription |
+| [30-ContextUploadsAndTransports.swift](Features/30-ContextUploadsAndTransports.swift) | `runtimeContext`, tool context schemas and computed descriptions, dynamic tools, `uploadFile` references, remote attachments, and transport request hooks |
 
 Shared helpers and the small set of environment-backed keys used by the feature
 tutorials live in [Support.swift](Support.swift). Provider examples keep their

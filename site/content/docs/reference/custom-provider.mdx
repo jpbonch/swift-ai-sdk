@@ -1,0 +1,43 @@
+---
+title: "customProvider"
+description: "Build a provider from your own model lookups."
+---
+
+Assembles a provider out of closures that resolve a model id to a model, with
+an optional fallback. Use it to alias ids, pin defaults, or route
+`"provider:model"` strings at your own boundary.
+
+```swift
+let provider = customProvider(
+  languageModels: ["fast": OpenAIModel("gpt-5.1-mini")],
+  fallbackProvider: nil
+)
+```
+
+## Signature
+
+```swift
+func customProvider(
+    languageModels: [String: any LanguageModel] = [:],
+    embeddingModels: [String: any EmbeddingModel] = [:],
+    imageModels: [String: any ImageModel] = [:],
+    speechModels: [String: any SpeechModel] = [:],
+    transcriptionModels: [String: any TranscriptionModel] = [:],
+    rerankingModels: [String: any RerankingModel] = [:],
+    fallback: ProviderRegistry.Provider? = nil
+) -> ProviderRegistry.Provider
+```
+
+Defined in `Sources/AI/Core/ProviderRegistry.swift`.
+
+## Parameters
+
+<Parameters name="customProvider" />
+
+## Returns
+
+A `ProviderRegistry.Provider`.
+
+## See also
+
+- [Providers](/docs/providers)

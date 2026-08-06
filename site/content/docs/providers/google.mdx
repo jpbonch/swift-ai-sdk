@@ -1,6 +1,6 @@
 ---
 title: Google
-description: Gemini over the native wire, Vertex AI routing, and Gemini Live realtime.
+description: Gemini over the Interactions API and generateContent, plus embeddings, files, caching, batch, Imagen, Veo, and Gemini Live.
 ---
 
 ```swift
@@ -9,6 +9,54 @@ let model = GoogleModel("gemini-3.6-flash")
 
 Key from `GOOGLE_GENERATIVE_AI_API_KEY`; base URL
 `https://generativelanguage.googleapis.com/v1beta`.
+
+## Two chat surfaces
+
+Google now has two ways to talk to Gemini, and both are here:
+
+| Surface | Model type | Use it for |
+| --- | --- | --- |
+| `generateContent` / `streamGenerateContent` | `GoogleModel` | The wire everything already speaks. Google calls it legacy but keeps it fully supported |
+| **Interactions API** | `GoogleInteractionsModel` | Where Google ships new features: server-side conversation state, background execution, and agents |
+
+```swift
+let interactions = GoogleInteractionsModel("gemini-3.6-flash")
+let result = try await generateText(model: interactions, prompt: "Explain how AI works")
+```
+
+Both conform to `LanguageModel`, so tools, structured output, reasoning, and
+the whole `generateText` / `streamText` / `Agent` surface work either way.
+
+### Server-side state, background runs, and agents
+
+```swift
+var chat = GoogleInteractionsModel("gemini-3.6-flash", store: true)
+let first = try await generateText(model: chat, prompt: "I have 2 dogs.")
+
+chat.previousInteractionID = first.providerMetadata?["google"]?["interactionId"]?.stringValue
+let second = try await generateText(model: chat, prompt: "How many paws?")
+```
+
+`previousInteractionID` replays the stored history server-side instead of
+resending it, which also raises cache hit rates. **`store` defaults to
+`false` here** even though Google's API defaults it to `true` — opting into
+55-day (paid) or 1-day (free) retention should be a decision you make, not
+one you inherit. `background: true` runs long tasks server-side, and
+`cancel(_:)`, `retrieve(_:)`, and `delete(_:)` manage a stored interaction.
+
+Agents use the same endpoint with `agent:` instead of `model:`:
+
+```swift
+let research = GoogleInteractionsModel.agent("deep-research-preview-04-2026")
+let report = try await generateText(model: research, prompt: "Compare Swift 6 concurrency proposals")
+```
+
+`agent_config` replaces `generation_config` for agent runs (Antigravity and
+CodeMender take their own settings), so pass it through
+`GoogleInteractionsModel.agent(agentConfig:)`. Reasoning maps to
+`thinking_level` (`minimal` / `low` / `medium` / `high`); thought steps arrive
+as `.reasoningDelta` and the interaction id lands on
+`result.providerMetadata["google"]["interactionId"]`.
 
 ## Features
 
@@ -80,3 +128,58 @@ request body is identical to the Gemini wire.
 tokens mint against `v1alpha/auth_tokens` and the session config rides
 in the token request. See [Realtime voice](/docs/realtime) for connection,
 session, audio, and tool-call events.
+
+## Embeddings
+
+```swift
+let embeddings = GoogleEmbeddingModel(
+  "gemini-embedding-001",
+  taskType: .retrievalDocument,
+  outputDimensionality: 768
+)
+let vectors = try await embedMany(model: embeddings, values: chunks)
+```
+
+One text uses `embedContent`, several use `batchEmbedContents`
+automatically. `taskType` covers the documented set (retrieval query and
+document, semantic similarity, classification, clustering, question
+answering, fact verification, code retrieval).
+
+## Beyond text
+
+| Surface | Entry point |
+| --- | --- |
+| [Image generation](/docs/image-generation) | `GoogleImageModel("imagen-4.0-generate-001")` — Imagen `:predict` |
+| [Video generation](/docs/video-generation) | `GoogleVideoModel("veo-3.1-generate-preview")` — Veo `:predictLongRunning` with polling and URI download |
+| [Speech generation](/docs/speech-generation) | `GoogleSpeechModel("gemini-3.1-flash-tts-preview")` — audio modality on `generateContent` |
+| Music | `GoogleMusicModel("lyria-3-clip-preview").generateMusic(prompt:)` |
+
+## Platform APIs
+
+```swift
+let files = GoogleFilesClient()
+let uploaded = try await files.upload(audio, mimeType: "audio/mpeg", displayName: "call.mp3")
+let ready = try await files.waitUntilActive(uploaded.name)
+
+let answer = try await generateText(
+  model: GoogleModel("gemini-3.6-flash"),
+  messages: [Message(role: .user, content: [
+    .text("Summarize this call."),
+    .file(FileContent(url: URL(string: ready.uri)!, mediaType: "audio/mpeg"))
+  ])]
+)
+```
+
+`GoogleFilesClient` implements Google's two-step resumable upload
+(`X-Goog-Upload-Protocol: resumable`, then a finalize PUT to the returned
+URL), plus `get`, `list`, `delete`, and `waitUntilActive` for the
+`PROCESSING → ACTIVE` transition that large media needs.
+
+- `GoogleCachedContentClient`: explicit context caching — `create` (with
+  `ttlSeconds`), `list`, `get`, `updateTTL`, `delete`. Pass the returned
+  `cachedContents/…` name through `providerOptions` as `cachedContent`.
+- `GoogleBatchClient`: `create` (`batchGenerateContent`),
+  `createEmbeddings` (`asyncBatchEmbedContent`), `get`, `list`, `cancel`,
+  `delete` — the 50%-cheaper async path.
+- `GoogleModel.countTokens(_:systemInstruction:)`: pre-flight sizing against
+  `models/{id}:countTokens`.

@@ -1,0 +1,33 @@
+---
+title: "decodePCM16"
+description: "Decode 16-bit PCM into samples."
+---
+
+The inverse of [`encodePCM16`](/docs/reference/encode-pcm16), for audio
+arriving from a provider that you want to play or process.
+
+```swift
+let samples = decodePCM16(data)
+```
+
+## Signature
+
+```swift
+func decodePCM16(
+    _ data: Data
+) -> [Float]
+```
+
+Defined in `Sources/AI/Realtime/AudioResampling.swift`.
+
+## Parameters
+
+<Parameters name="decodePCM16" />
+
+## Returns
+
+An array of samples.
+
+## See also
+
+- [Realtime voice](/docs/realtime)

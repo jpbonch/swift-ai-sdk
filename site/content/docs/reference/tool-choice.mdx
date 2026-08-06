@@ -1,0 +1,43 @@
+---
+title: "ToolChoice"
+description: "Whether the model may call tools, must call one, or must call a specific one."
+---
+
+`.auto` lets the model decide, which is what you want almost always. The
+other cases are for the moments when you need to take that decision away:
+forcing a tool call on the first step, or forbidding tools while the model
+writes its final answer.
+
+Forcing a specific tool is a useful trick for structured extraction. Give the
+model one tool whose schema is the shape you want back.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: prompt,
+  tools: [extractInvoice],
+  toolChoice: .tool("extract_invoice")
+)
+```
+
+## Declaration
+
+```swift
+public enum ToolChoice
+```
+
+Defined in `Sources/AI/Core/LanguageModel.swift`.
+
+## Cases
+
+```swift
+case auto
+case none
+case required
+case tool(String)
+```
+
+## See also
+
+- [Tools guide](/docs/tools)
+- [Tool](/docs/reference/tool)

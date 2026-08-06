@@ -1,0 +1,89 @@
+---
+title: "generateObject"
+description: "Generate a typed value validated against a JSON schema."
+---
+
+Constrains the model to a JSON schema and decodes the response into a
+`Decodable` type. Validation happens before decoding, so a response that does
+not fit the schema throws rather than producing a half-populated value.
+
+This is the call for extraction, classification, and any time you need the
+model's answer as data rather than prose. Pass `JSONValue.self` when you want
+the raw object instead of a Swift type.
+
+```swift
+struct Recipe: Decodable, Sendable {
+  let title: String
+  let ingredients: [String]
+}
+
+let result = try await generateObject(
+  model: AnthropicModel("claude-sonnet-5"),
+  of: Recipe.self,
+  schema: Schema.object([
+    "title": .string(),
+    "ingredients": .array(of: .string())
+  ]).jsonSchema,
+  prompt: "A recipe for lasagna."
+)
+print(result.object.title)
+```
+
+## Signature
+
+```swift
+func generateObject<T: Decodable & Sendable>(
+    model: any LanguageModel,
+    of type: T.Type = T.self,
+    schema: JSONValue,
+    schemaName: String = "response",
+    schemaDescription: String? = nil,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2,
+    repairText: (@Sendable (String, any Error) async -> String?)? = nil
+) async throws -> GenerateObjectResult<T>
+```
+
+Defined in `Sources/AI/Core/GenerateObject.swift`.
+
+## Parameters
+
+<Parameters name="generateObject" />
+
+## Overloads
+
+1 other form of this function exists:
+
+```swift
+func generateObject<T: Decodable & Sendable>(
+    model: any LanguageModel,
+    of type: T.Type = T.self,
+    schema: Schema,
+    schemaName: String = "response",
+    schemaDescription: String? = nil,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2
+) async throws -> GenerateObjectResult<T>
+```
+
+
+## Returns
+
+`GenerateObjectResult<T>` with the decoded `object`, the `rawJSON` it came
+from, `finishReason`, and `usage`.
+
+## See also
+
+- [Structured output](/docs/structured-output)
+- [generateObjectArray](/docs/reference/generate-object-array)
+- [streamObject](/docs/reference/stream-object)

@@ -1,0 +1,33 @@
+---
+title: "getRealtimeToolDefinitions"
+description: "Convert tools into realtime session definitions."
+---
+
+Maps ordinary SDK tools into the shape a realtime voice session expects, so
+one tool array can serve both a text loop and a voice session.
+
+```swift
+let definitions = getRealtimeToolDefinitions(tools)
+```
+
+## Signature
+
+```swift
+func getRealtimeToolDefinitions(
+    tools: [any AIToolProtocol]
+) -> [RealtimeToolDefinition]
+```
+
+Defined in `Sources/AI/Realtime/RealtimeModel.swift`.
+
+## Parameters
+
+<Parameters name="getRealtimeToolDefinitions" />
+
+## Returns
+
+Realtime tool definitions for the session configuration.
+
+## See also
+
+- [Realtime voice](/docs/realtime)

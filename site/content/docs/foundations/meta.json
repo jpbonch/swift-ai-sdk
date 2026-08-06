@@ -1,0 +1,12 @@
+{
+  "title": "Foundations",
+  "icon": "Compass",
+  "defaultOpen": true,
+  "pages": [
+    "the-loop",
+    "models-and-tokens",
+    "prompts-and-messages",
+    "tool-calling",
+    "streaming"
+  ]
+}

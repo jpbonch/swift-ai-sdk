@@ -1,0 +1,140 @@
+---
+title: Meta
+description: Muse Spark over the Responses API, with search grounding, tool search, and a 1M-token context window.
+---
+
+```swift
+let model = MetaModel("muse-spark-1.2")        // Responses API
+let chat  = MetaModel.chat("muse-spark-1.2")   // chat-completions wire
+```
+
+Key from `MODEL_API_KEY` (or `META_API_KEY`); base URL
+`https://api.meta.ai/v1`. Pass `apiKey:`, `baseURL:`, or `headers:` to
+override.
+
+Meta's API speaks three wire formats over the same models: Responses,
+Chat Completions, and an Anthropic-compatible Messages endpoint. This pack
+covers the first two. `MetaModel` targets Responses, which carries
+reasoning across turns and is the only wire that runs search grounding.
+`MetaModel.chat` targets `/v1/chat/completions`, which is the simpler drop-in
+but does not carry reasoning between turns.
+
+## Models
+
+| Model ID | Tier | Context window |
+| --- | --- | --- |
+| `muse-spark-1.2` | Standard | 1,048,576 |
+| `muse-spark-1.1` | Standard | 1,048,576 |
+| `muse-spark-1.2-contributor` | Contributor | 1,048,576 |
+
+All three are the same Muse Spark family. `-contributor` is the same
+checkpoint as `1.2` at a steep discount, in exchange for Meta training on
+your prompts and completions — worth knowing before you point production
+traffic at it.
+
+Muse Spark takes text, image, video, and PDF input. The pack maps text,
+images (public URL or inline bytes), and PDFs onto Meta's `input_text`,
+`input_image`, and `input_file` blocks. Video input and `file_id`
+references from the Files API are not wired up yet.
+
+## Reasoning
+
+Muse Spark always reasons. Effort maps onto the unified `reasoning:`
+parameter, including `.xhigh`:
+
+```swift
+let result = try await generateText(
+  model: MetaModel("muse-spark-1.2"),
+  prompt: "Prove that the square root of 2 is irrational.",
+  reasoning: .xhigh
+)
+```
+
+`.none` is the one value the API rejects outright with a 400, so the pack
+drops it and lets the model pick its own depth instead of failing the
+call.
+
+The raw chain of thought never comes back as text. Passing an explicit
+`reasoning:` also asks Meta for a reasoning summary, which streams as
+`.reasoningDelta`. Leave `reasoning:` unset and the model still reasons at
+its own depth, but no summary is requested, so nothing arrives on that
+channel. A summary isn't guaranteed even when you ask — short turns often
+produce none.
+
+Unlike OpenAI's reasoning models, Muse Spark still accepts `temperature`
+and `topP`, so the pack forwards them. Meta tunes the model for the
+defaults, though, and clearer instructions usually beat a lower
+temperature.
+
+## Search grounding
+
+Pass `MetaModel.Tools.webSearch()` and the model decides whether to
+search. Citations arrive as `StreamPart.source`:
+
+```swift
+let result = try await generateText(
+  model: MetaModel("muse-spark-1.2"),
+  prompt: "What are the latest developments in AI regulation?",
+  tools: [
+    MetaModel.Tools.webSearch(
+      searchContextSize: "high",
+      userLocation: .init(country: "GB", city: "London")
+    )
+  ]
+)
+for source in result.sources { print(source.url) }
+```
+
+Enabling the tool doesn't force a search — the model skips it when it can
+answer from training data. Search grounding is Responses-only: pass these
+builders to `MetaModel.chat` and they go out on a wire that has no such
+tool type, which the API rejects.
+
+## Tool search
+
+With a large tool catalog, `MetaModel.Tools.toolSearch()` lets the server
+load definitions on demand instead of sending all of them every turn.
+Mark the tools you want deferred and they stay out of the prompt until the
+model asks for them:
+
+```swift
+let result = try await generateText(
+  model: MetaModel("muse-spark-1.2"),
+  prompt: "Refund order 1234.",
+  tools: [refund, lookup, MetaModel.Tools.toolSearch()]
+)
+```
+
+Only one `tool_search` tool per request; a second one returns a 400.
+
+## Stateless reasoning replay
+
+By default Meta stores each response so you can chain turns with
+`previous_response_id`. If you'd rather keep nothing server-side, ask for
+encrypted reasoning items and replay them yourself:
+
+```swift
+let result = try await generateText(
+  model: MetaModel("muse-spark-1.2"),
+  prompt: "Plan the migration.",
+  providerOptions: .object([
+    "store": .bool(false),
+    "include": .array([.string("reasoning.encrypted_content")])
+  ])
+)
+```
+
+The two are mutually exclusive: `include` plus `previous_response_id` in
+the same request is a 400.
+
+## Provider options
+
+Anything else on the Responses body rides `providerOptions` and merges
+onto the request: `previous_response_id`, `background`,
+`prompt_cache_retention` (`"in_memory"` or `"24h"`), `instructions`,
+`metadata`, `frequency_penalty`, `presence_penalty`.
+
+A few OpenAI parameters have no equivalent here. `logprobs` returns a 400
+because Muse Spark is a reasoning model, and `truncation: "auto"` is
+rejected — Meta never trims context for you, so an over-long request
+fails and you compact it yourself.

@@ -1,0 +1,35 @@
+---
+title: "fingerprintTools"
+description: "Snapshot tool definitions so changes can be detected."
+---
+
+Hashes each tool's name, description, and schema into a fingerprint you can
+store. Pair it with
+[`detectToolDrift`](/docs/reference/detect-tool-drift) to notice when a
+remote server changes a tool after a user approved it.
+
+```swift
+let approved = fingerprintTools(try await mcp.tools())
+```
+
+## Signature
+
+```swift
+func fingerprintTools(
+    _ tools: [any AIToolProtocol]
+) -> [String: MCPToolFingerprint]
+```
+
+Defined in `Sources/AI/MCP/MCPToolDrift.swift`.
+
+## Parameters
+
+<Parameters name="fingerprintTools" />
+
+## Returns
+
+A `[String: MCPToolFingerprint]` keyed by tool name.
+
+## See also
+
+- [MCP](/docs/mcp)

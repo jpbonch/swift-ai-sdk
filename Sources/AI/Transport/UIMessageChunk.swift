@@ -14,8 +14,13 @@ public enum UIMessageChunk: Sendable, Hashable {
     case toolInputError(toolCallID: String, toolName: String, input: JSONValue?, errorText: String, dynamic: Bool? = nil)
     case toolOutputAvailable(toolCallID: String, output: JSONValue, providerExecuted: Bool? = nil, preliminary: Bool? = nil, dynamic: Bool? = nil)
     case toolOutputError(toolCallID: String, errorText: String, dynamic: Bool? = nil)
-    case toolApprovalRequest(approvalID: String, toolCallID: String)
-    case toolApprovalResponse(approvalID: String, approved: Bool, reason: String? = nil)
+    case toolApprovalRequest(
+        approvalID: String, toolCallID: String, reason: String? = nil,
+        isAutomatic: Bool? = nil, signature: String? = nil
+    )
+    case toolApprovalResponse(
+        approvalID: String, approved: Bool, reason: String? = nil, signature: String? = nil
+    )
     case toolOutputDenied(toolCallID: String)
     case sourceURL(sourceID: String, url: String, title: String? = nil)
     case sourceDocument(sourceID: String, mediaType: String, title: String, filename: String? = nil)
@@ -120,19 +125,25 @@ extension UIMessageChunk {
                 "errorText": .string(errorText)
             ]
             if let dynamic { object["dynamic"] = .bool(dynamic) }
-        case .toolApprovalRequest(let approvalID, let toolCallID):
+        case .toolApprovalRequest(
+            let approvalID, let toolCallID, let reason, let isAutomatic, let signature
+        ):
             object = [
                 "type": "tool-approval-request",
                 "approvalId": .string(approvalID),
                 "toolCallId": .string(toolCallID)
             ]
-        case .toolApprovalResponse(let approvalID, let approved, let reason):
+            if let reason { object["reason"] = .string(reason) }
+            if let isAutomatic { object["isAutomatic"] = .bool(isAutomatic) }
+            if let signature { object["signature"] = .string(signature) }
+        case .toolApprovalResponse(let approvalID, let approved, let reason, let signature):
             object = [
                 "type": "tool-approval-response",
                 "approvalId": .string(approvalID),
                 "approved": .bool(approved)
             ]
             if let reason { object["reason"] = .string(reason) }
+            if let signature { object["signature"] = .string(signature) }
         case .toolOutputDenied(let toolCallID):
             object = ["type": "tool-output-denied", "toolCallId": .string(toolCallID)]
         case .sourceURL(let sourceID, let url, let title):
@@ -248,13 +259,19 @@ extension UIMessageChunk {
         case "tool-approval-request":
             guard let approvalID = wire["approvalId"]?.stringValue,
                   let toolCallID = wire["toolCallId"]?.stringValue else { return nil }
-            self = .toolApprovalRequest(approvalID: approvalID, toolCallID: toolCallID)
+            self = .toolApprovalRequest(
+                approvalID: approvalID, toolCallID: toolCallID,
+                reason: wire["reason"]?.stringValue,
+                isAutomatic: wire["isAutomatic"]?.boolValue,
+                signature: wire["signature"]?.stringValue
+            )
         case "tool-approval-response":
             guard let approvalID = wire["approvalId"]?.stringValue,
                   let approved = wire["approved"]?.boolValue else { return nil }
             self = .toolApprovalResponse(
                 approvalID: approvalID, approved: approved,
-                reason: wire["reason"]?.stringValue
+                reason: wire["reason"]?.stringValue,
+                signature: wire["signature"]?.stringValue
             )
         case "tool-output-denied":
             guard let toolCallID = wire["toolCallId"]?.stringValue else { return nil }

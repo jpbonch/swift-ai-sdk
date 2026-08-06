@@ -1,0 +1,39 @@
+---
+title: "AIError.invalidToolInput"
+description: "Tool arguments failed schema validation, so the tool never ran."
+---
+
+## Symptom
+
+`AIError.invalidToolInput(tool:reason:)`. The tool's own code never executed.
+
+## Why it happens
+
+Arguments are validated against the tool's schema before the executor is
+called, so a malformed call fails closed rather than reaching your code with
+missing fields.
+
+Smaller models get this wrong more often, especially with deeply nested schemas
+or unusual enum values.
+
+## Fix
+
+Supply `repairToolCall` to fix a call and retry it instead of failing the run:
+
+```swift
+repairToolCall: { call, tools in
+  guard call.name == "search" else { return nil }
+  var fixed = call
+  fixed.arguments = normalize(call.arguments)
+  return fixed
+}
+```
+
+Flattening the schema helps more than prompting does. So does adding
+`inputExamples` to the tool, which Anthropic sends natively and other providers
+can receive through the `.addToolInputExamples()` middleware.
+
+## See also
+
+- [Tools](/docs/tools)
+- [Errors](/docs/reference/errors)

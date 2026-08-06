@@ -1,0 +1,82 @@
+---
+title: Tool calling
+description: The model never runs your code. What it actually emits, and who executes it.
+icon: Wrench
+---
+
+The most common misunderstanding about tools is that the model calls them. It
+doesn't. It can't execute anything.
+
+What actually happens is that you describe your tools, the model replies with a
+message saying it would like `get_weather` called with these arguments, and the
+SDK runs the function and hands the result back. The model only ever reads and
+writes text.
+
+## What a tool is, to the model
+
+A name, a description in plain English, and a schema for its arguments. That's
+all it sees. It never sees your implementation, and it has no idea whether the
+call succeeded until it reads the result.
+
+## The description is the interface
+
+This is the part that decides whether a tool works, and it's the part most
+people write last.
+
+The model chooses tools by reading descriptions. If two tools sound alike, it
+picks wrongly. If a description is vague, it doesn't pick the tool at all, which
+is the single most common reason a tool "never runs."
+
+Write it for a competent colleague who has never seen your codebase. Say what
+the tool does, when to use it, and when not to:
+
+```swift
+// Too vague. The model can't tell when this applies.
+description: "Gets data."
+
+// Specific enough to choose correctly.
+description: """
+Current weather for a city. Use for questions about conditions right now. \
+Does not do forecasts or historical weather.
+"""
+```
+
+Argument descriptions matter for the same reason. A parameter called `id` with
+no description will be filled with a guess.
+
+## Arguments aren't validated by the model
+
+The model produces JSON that it believes matches your schema. It's usually right
+and sometimes not: a missing field, a string where a number belongs, an enum
+value you never defined.
+
+The SDK validates against the schema before your code runs, so your function
+either gets well-formed input or the call fails cleanly. What no schema can
+check is whether the values make sense. A city name that's valid JSON and also
+fictional will sail straight through.
+
+## Failure is information
+
+A tool that throws doesn't end the run. The error goes back to the model as the
+tool's result, and it can correct course, fix an argument, try something else,
+or explain the problem to the user.
+
+Which makes error messages a kind of prompt. `"City not found. Try a full name
+like 'Oslo, Norway'."` gets you a retry. `"Error 4"` gets you a shrug.
+
+## Some calls shouldn't be automatic
+
+The loop runs tools the moment the model asks. That's fine for a search. It's
+less fine for anything that spends money, sends a message, or deletes something.
+
+Approvals put a person between the request and the execution. The loop pauses,
+surfaces the pending call, and resumes once you answer. Decide this per tool
+based on what the call costs if it's wrong, not on how often the model gets it
+right.
+
+## Next
+
+- [Tools](/docs/tools) covers writing them in code
+- [The loop](/docs/foundations/the-loop) covers where tool calls fit
+- [Timeouts and approvals](/docs/timeouts-and-approvals) covers gating risky calls
+- [Tool never executes](/docs/troubleshooting/tool-never-executes) covers what to do when it isn't chosen

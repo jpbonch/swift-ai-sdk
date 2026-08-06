@@ -1,0 +1,53 @@
+---
+title: "GenerateTextResult"
+description: "Everything one finished generateText call produced."
+---
+
+The finished text is on `text`, but the result carries the whole run: every
+step the loop took, the tool calls and results within them, token usage, the
+reason generation stopped, and the provider's raw response.
+
+Reach past `text` when you need to audit what happened: which tools ran, how
+many steps it took, whether it stopped because the model finished or because it
+hit a limit.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: "Summarise this in one line.",
+  tools: [search]
+)
+
+print(result.text)
+print("\(result.steps.count) steps, \(result.usage.totalTokens) tokens")
+```
+
+## Declaration
+
+```swift
+public struct GenerateTextResult
+```
+
+Defined in `Sources/AI/Core/GenerateText.swift`.
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var text` | `String` | — |
+| `var reasoningText` | `String` | — |
+| `var toolCalls` | `[ToolCall]` | — |
+| `var toolResults` | `[ToolResult]` | — |
+| `var sources` | `[Source]` | — |
+| `var steps` | `[StepResult]` | — |
+| `var messages` | `[Message]` | — |
+| `var providerMetadata` | `JSONValue?` | — |
+| `var experimentalOutput` | `JSONValue?` | `nil` |
+| `var finishReason` | `FinishReason` | — |
+| `var usage` | `Usage` | — |
+| `var stepCount` | `Int { steps.count }` | — |
+
+## See also
+
+- [generateText](/docs/reference/generate-text)
+- [StreamTextResult](/docs/reference/stream-text-result)

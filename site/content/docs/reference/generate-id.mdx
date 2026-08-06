@@ -1,0 +1,33 @@
+---
+title: "generateId"
+description: "Generate an id in the SDK default format."
+---
+
+Produces the same id format the SDK uses internally for messages and tool
+calls. Use it so ids you mint by hand match the ones the loop generates.
+
+```swift
+let id = generateId()
+```
+
+## Signature
+
+```swift
+func generateId(
+    size: Int = 16
+) -> String
+```
+
+Defined in `Sources/AI/Core/RuntimeContext.swift`.
+
+## Parameters
+
+<Parameters name="generateId" />
+
+## Returns
+
+A `String`.
+
+## See also
+
+- [createIdGenerator](/docs/reference/create-id-generator)

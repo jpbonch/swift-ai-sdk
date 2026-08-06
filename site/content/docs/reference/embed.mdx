@@ -1,0 +1,42 @@
+---
+title: "embed"
+description: "Embed a single string into a vector."
+---
+
+Turns one string into a vector for similarity search, clustering, or
+classification. For more than one value use
+[`embedMany`](/docs/reference/embed-many), which batches.
+
+```swift
+let result = try await embed(
+  model: OpenAIEmbeddingModel("text-embedding-3-small"),
+  value: "swift concurrency"
+)
+print(result.embedding.count)
+```
+
+## Signature
+
+```swift
+func embed(
+    model: any EmbeddingModel,
+    value: String,
+    maxRetries: Int = 2
+) async throws -> EmbedResult
+```
+
+Defined in `Sources/AI/Core/Embeddings.swift`.
+
+## Parameters
+
+<Parameters name="embed" />
+
+## Returns
+
+`EmbedResult` with the `embedding` vector and `usage`.
+
+## See also
+
+- [Embeddings](/docs/embeddings)
+- [embedMany](/docs/reference/embed-many)
+- [cosineSimilarity](/docs/reference/cosine-similarity)

@@ -154,11 +154,27 @@ public struct ChatRequest: Sendable {
 ```swift
 public struct HTTPChatTransport: ChatTransport {
     public init(api: URL, headers: [String: String] = [:],
-                body: JSONValue? = nil, urlSession: URLSession = .shared)
+                body: JSONValue? = nil,
+                prepareSendMessagesRequest: (@Sendable (ChatRequest) async throws -> PreparedChatRequest)? = nil,
+                prepareReconnectToStreamRequest: (@Sendable (String) async throws -> PreparedChatRequest)? = nil,
+                urlSession: URLSession = .shared)
 }
 ```
 
 POSTs `{ id, messages, trigger, messageId? }` (merging any `body` object keys), reads SSE frames terminated by `data: [DONE]`. `headers` carry auth. Implements the reconnect contract: `reconnectToStream` does `GET {api}/{chatId}/stream`, returning `nil` on HTTP 204 (nothing to resume). Wire `messages` as `messages.map(\.wire)`.
+
+Per-request computation goes through the hooks, which return `PreparedChatRequest(api:headers:body:)`; their headers and body keys win over the static ones. Use for refreshed tokens, trimming history, or a different resume URL:
+
+```swift
+HTTPChatTransport(api: api, prepareSendMessagesRequest: { request in
+    PreparedChatRequest(
+        headers: ["authorization": "Bearer \(await auth.freshToken())"],
+        body: ["messages": .array(request.messages.suffix(10).map(\.wire))]
+    )
+})
+```
+
+`TextStreamChatTransport(api:headers:body:urlSession:)` targets plain-text streaming endpoints: it POSTs the same payload and wraps each line as text deltas in a synthetic UI message stream.
 
 `LocalChatTransport` — in-process, no server; the usual way to run tools locally:
 
@@ -239,6 +255,19 @@ static func UIMessageStream.chunks(
     messageMetadata: (@Sendable (TextStreamPart) -> JSONValue?)? = nil
 ) -> AsyncThrowingStream<UIMessageChunk, Error>
 ```
+
+### Client-side helpers
+
+```swift
+try validateUIMessages(messages)                 // throws AIError.invalidRequest on malformed tool parts
+safeValidateUIMessages(messages)                 // -> Result<[UIMessage], Error>
+lastAssistantMessageIsCompleteWithToolCalls(messages)
+lastAssistantMessageIsCompleteWithApprovalResponses(messages)
+await consumeStream(chunks) { error in … }       // drain without rendering; also result.consumeStream()
+pruneMessages(uiMessages, reasoning: .beforeLastMessage, toolCalls: .all)
+```
+
+Validation accepts assistant messages with empty `parts` (persisted errored responses stay loadable) but rejects tool parts missing a `toolCallId`, approval metadata, or output.
 
 Build arbitrary streams (the `createUIMessageStream` analog) and merge whole generation streams:
 

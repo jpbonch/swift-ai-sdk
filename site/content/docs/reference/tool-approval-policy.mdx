@@ -1,0 +1,61 @@
+---
+title: "ToolApprovalPolicy"
+description: "Which tool calls need a human yes before they run."
+---
+
+Some tools shouldn't fire on the model's say-so alone. Anything that spends
+money, sends a message, or deletes something. A policy sits between the model
+asking and the tool running, and pauses the loop until you approve.
+
+You can require approval for everything, for nothing, or for a named set. The
+loop surfaces the pending call, waits, and resumes with your answer.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: prompt,
+  tools: [search, sendEmail],
+  toolApproval: .requiring(["send_email"])
+)
+```
+
+## Declaration
+
+```swift
+public struct ToolApprovalPolicy
+```
+
+Defined in `Sources/AI/Core/ToolApproval.swift`.
+
+## Initializers
+
+```swift
+init(
+    _ decide: @escaping @Sendable (ToolApprovalContext) async -> ToolApprovalDecision
+)
+```
+
+```swift
+init(
+    dictionaryLiteral elements: (String, ToolApprovalDecision)...
+)
+```
+
+```swift
+init(
+    _ decisions: [String: ToolApprovalDecision]
+)
+```
+
+## Methods
+
+```swift
+func decide(
+    _ context: ToolApprovalContext
+) async -> ToolApprovalDecision
+```
+
+## See also
+
+- [Timeouts and approvals](/docs/timeouts-and-approvals)
+- [Approvals guide](/docs/guides/approvals)

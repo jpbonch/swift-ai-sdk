@@ -1,0 +1,31 @@
+---
+title: "AIError.invalidToolApproval"
+description: "An approval response failed verification."
+---
+
+## Symptom
+
+`AIError.invalidToolApproval(...)` when resuming after an approval.
+
+## Why it happens
+
+When `toolApprovalSecret` is set, approvals are HMAC-signed and verified
+fail-closed. The check rejects a response whose signature does not match, one
+that was replayed, or one for a tool that was never offered.
+
+In practice this is usually benign: the secret changed between the request and
+the response, or a client dropped the `signature` field while round-tripping
+the message.
+
+## Fix
+
+Make sure the same `toolApprovalSecret` is used for the call that requested the
+approval and the call that resumes it, and that your client preserves the
+signature verbatim rather than reconstructing the approval object.
+
+`ChatSession` and the terminal UI carry signatures back automatically. If you
+wrote your own transport, that is the first place to look.
+
+## See also
+
+- [Timeouts and approvals](/docs/timeouts-and-approvals)

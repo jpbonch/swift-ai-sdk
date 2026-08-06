@@ -7,10 +7,10 @@ public struct GoogleModel: LanguageModel {
     public let provider = "google"
     public let modelID: String
 
-    private let apiKey: String
-    private let baseURL: URL
-    private let headers: [String: String]
-    private let urlSession: URLSession
+    let apiKey: String
+    let baseURL: URL
+    let headers: [String: String]
+    let urlSession: URLSession
 
     public init(
         _ modelID: String,
@@ -260,7 +260,7 @@ public struct GoogleModel: LanguageModel {
         return .object(["parts": .array([.object(["text": .string(system)])])])
     }
 
-    private static func mapContents(_ messages: [Message]) -> [JSONValue] {
+    static func mapContents(_ messages: [Message]) -> [JSONValue] {
         messages.compactMap { message -> JSONValue? in
             let role: String
             let parts: [JSONValue]
@@ -389,6 +389,21 @@ public extension GoogleModel {
             ProviderDefinedTool(
                 provider: "google", id: "google.code_execution", name: name,
                 args: .object(["codeExecution": .object([:])])
+            )
+        }
+
+        public static func vertexRagStore(
+            ragCorpus: String,
+            topK: Int? = nil,
+            name: String = "vertex_rag_store"
+        ) -> ProviderDefinedTool {
+            var store: [String: JSONValue] = [
+                "rag_resources": .object(["rag_corpus": .string(ragCorpus)])
+            ]
+            if let topK { store["similarity_top_k"] = .number(Double(topK)) }
+            return ProviderDefinedTool(
+                provider: "google", id: "google.vertex_rag_store", name: name,
+                args: .object(["retrieval": .object(["vertex_rag_store": .object(store)])])
             )
         }
 

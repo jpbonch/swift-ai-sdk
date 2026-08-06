@@ -1,0 +1,34 @@
+---
+title: "isStepCount"
+description: "Stop on an exact step number."
+---
+
+Fires when the loop reaches exactly this step, where
+[`stepCountIs`](/docs/reference/step-count-is) fires at or past it. Use it
+when you are composing conditions and need equality rather than a ceiling.
+
+```swift
+stopWhen: [isStepCount(3)]
+```
+
+## Signature
+
+```swift
+func isStepCount(
+    _ count: Int
+) -> StopCondition
+```
+
+Defined in `Sources/AI/Core/StepControl.swift`.
+
+## Parameters
+
+<Parameters name="isStepCount" />
+
+## Returns
+
+A `StopCondition`.
+
+## See also
+
+- [stepCountIs](/docs/reference/step-count-is)

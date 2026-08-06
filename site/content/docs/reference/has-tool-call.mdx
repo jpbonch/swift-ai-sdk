@@ -1,0 +1,34 @@
+---
+title: "hasToolCall"
+description: "Stop once a named tool has been called."
+---
+
+Ends the loop as soon as the model calls the tool you name. The usual pattern
+is a terminal tool such as `submit_answer` or `finish`, which turns "the model
+decided it is done" into a stop condition.
+
+```swift
+stopWhen: [hasToolCall("submit_answer")]
+```
+
+## Signature
+
+```swift
+func hasToolCall(
+    _ toolNames: String...
+) -> StopCondition
+```
+
+Defined in `Sources/AI/Core/StepControl.swift`.
+
+## Parameters
+
+<Parameters name="hasToolCall" />
+
+## Returns
+
+A `StopCondition`.
+
+## See also
+
+- [Agents](/docs/agents)

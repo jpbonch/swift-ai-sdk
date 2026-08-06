@@ -1,0 +1,46 @@
+---
+title: "ContentPart"
+description: "One piece of a message: text, an image, a file, a tool call, a result, or reasoning."
+---
+
+Messages are arrays of these. Splitting a turn into parts is what lets one
+message hold a sentence and an image, or an assistant turn hold both its
+reasoning and the tool calls it decided on.
+
+You mostly construct the text and image cases and read the rest. Tool calls and
+tool results are produced by the loop, and reasoning parts appear only for
+models that expose their thinking.
+
+```swift
+let message = Message(
+  role: .user,
+  content: [
+    .text("What is in this photo?"),
+    .image(data: photoData, mediaType: "image/jpeg")
+  ]
+)
+```
+
+## Declaration
+
+```swift
+public enum ContentPart
+```
+
+Defined in `Sources/AI/Core/Message.swift`.
+
+## Cases
+
+```swift
+case text(String)
+case image(ImageContent)
+case file(FileContent)
+case toolCall(ToolCall)
+case toolResult(ToolResult)
+case toolApprovalResponse(ToolApprovalResponse)
+```
+
+## See also
+
+- [Messages guide](/docs/messages)
+- [Message](/docs/reference/message)

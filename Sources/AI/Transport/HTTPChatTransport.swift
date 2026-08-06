@@ -3,31 +3,62 @@ import Foundation
 import FoundationNetworking
 #endif
 
+public struct PreparedChatRequest: Sendable {
+    public var api: URL?
+    public var headers: [String: String]
+    public var body: JSONValue?
+
+    public init(
+        api: URL? = nil,
+        headers: [String: String] = [:],
+        body: JSONValue? = nil
+    ) {
+        self.api = api
+        self.headers = headers
+        self.body = body
+    }
+}
+
 public struct HTTPChatTransport: ChatTransport {
     public var api: URL
     public var headers: [String: String]
     public var body: JSONValue?
+    public var prepareSendMessagesRequest:
+        (@Sendable (ChatRequest) async throws -> PreparedChatRequest)?
+    public var prepareReconnectToStreamRequest:
+        (@Sendable (String) async throws -> PreparedChatRequest)?
     private let urlSession: URLSession
 
     public init(
         api: URL,
         headers: [String: String] = [:],
         body: JSONValue? = nil,
+        prepareSendMessagesRequest:
+            (@Sendable (ChatRequest) async throws -> PreparedChatRequest)? = nil,
+        prepareReconnectToStreamRequest:
+            (@Sendable (String) async throws -> PreparedChatRequest)? = nil,
         urlSession: URLSession = .shared
     ) {
         self.api = api
         self.headers = headers
         self.body = body
+        self.prepareSendMessagesRequest = prepareSendMessagesRequest
+        self.prepareReconnectToStreamRequest = prepareReconnectToStreamRequest
         self.urlSession = urlSession
     }
 
     public func sendMessages(
         _ request: ChatRequest
     ) async throws -> AsyncThrowingStream<UIMessageChunk, Error> {
-        var urlRequest = URLRequest(url: api)
+        let prepared = try await prepareSendMessagesRequest?(request)
+
+        var urlRequest = URLRequest(url: prepared?.api ?? api)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         for (field, value) in headers {
+            urlRequest.setValue(value, forHTTPHeaderField: field)
+        }
+        for (field, value) in prepared?.headers ?? [:] {
             urlRequest.setValue(value, forHTTPHeaderField: field)
         }
 
@@ -39,6 +70,9 @@ public struct HTTPChatTransport: ChatTransport {
         payload["messages"] = .array(request.messages.map(\.wire))
         payload["trigger"] = .string(request.trigger.rawValue)
         if let messageID = request.messageID { payload["messageId"] = .string(messageID) }
+        if case .object(let overrides)? = prepared?.body {
+            for (key, value) in overrides { payload[key] = value }
+        }
         urlRequest.httpBody = try JSONEncoder().encode(JSONValue.object(payload))
 
         let (bytes, response) = try await urlSession.bytes(for: urlRequest)
@@ -54,11 +88,16 @@ public struct HTTPChatTransport: ChatTransport {
     public func reconnectToStream(
         chatID: String
     ) async throws -> AsyncThrowingStream<UIMessageChunk, Error>? {
+        let prepared = try await prepareReconnectToStreamRequest?(chatID)
         var urlRequest = URLRequest(
-            url: api.appendingPathComponent(chatID).appendingPathComponent("stream")
+            url: prepared?.api
+                ?? api.appendingPathComponent(chatID).appendingPathComponent("stream")
         )
         urlRequest.httpMethod = "GET"
         for (field, value) in headers {
+            urlRequest.setValue(value, forHTTPHeaderField: field)
+        }
+        for (field, value) in prepared?.headers ?? [:] {
             urlRequest.setValue(value, forHTTPHeaderField: field)
         }
 

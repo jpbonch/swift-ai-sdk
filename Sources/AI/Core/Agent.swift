@@ -23,6 +23,12 @@ public struct Agent: Sendable {
     public var onStepFinish: OnStepFinish?
     public var maxRetries: Int
     public var providerOptions: JSONValue?
+    public var toolApproval: ToolApprovalPolicy?
+    public var toolApprovalSecret: String?
+    public var timeout: GenerationTimeout?
+    public var runtimeContext: JSONValue?
+    public var telemetry: TelemetrySettings?
+    public var compaction: Compaction?
 
     public init(
         model: any LanguageModel,
@@ -46,8 +52,20 @@ public struct Agent: Sendable {
         prepareStep: PrepareStep? = nil,
         onStepFinish: OnStepFinish? = nil,
         maxRetries: Int = 2,
-        providerOptions: JSONValue? = nil
+        providerOptions: JSONValue? = nil,
+        toolApproval: ToolApprovalPolicy? = nil,
+        toolApprovalSecret: String? = nil,
+        timeout: GenerationTimeout? = nil,
+        runtimeContext: JSONValue? = nil,
+        telemetry: TelemetrySettings? = nil,
+        compaction: Compaction? = nil
     ) {
+        self.toolApproval = toolApproval
+        self.toolApprovalSecret = toolApprovalSecret
+        self.timeout = timeout
+        self.runtimeContext = runtimeContext
+        self.telemetry = telemetry
+        self.compaction = compaction
         self.model = model
         self.instructions = instructions
         self.tools = tools
@@ -96,7 +114,13 @@ public struct Agent: Sendable {
             prepareCall: prepareCall,
             prepareStep: prepareStep,
             onStepFinish: onStepFinish,
-            maxRetries: maxRetries
+            maxRetries: maxRetries,
+            toolApproval: toolApproval,
+            toolApprovalSecret: toolApprovalSecret,
+            timeout: timeout,
+            runtimeContext: runtimeContext,
+            telemetry: telemetry,
+            compaction: compaction
         )
     }
 
@@ -124,7 +148,13 @@ public struct Agent: Sendable {
             prepareCall: prepareCall,
             prepareStep: prepareStep,
             onStepFinish: onStepFinish,
-            maxRetries: maxRetries
+            maxRetries: maxRetries,
+            toolApproval: toolApproval,
+            toolApprovalSecret: toolApprovalSecret,
+            timeout: timeout,
+            runtimeContext: runtimeContext,
+            telemetry: telemetry,
+            compaction: compaction
         )
     }
 
@@ -152,7 +182,13 @@ public struct Agent: Sendable {
             prepareCall: prepareCall,
             prepareStep: prepareStep,
             onStepFinish: onStepFinish,
-            maxRetries: maxRetries
+            maxRetries: maxRetries,
+            toolApproval: toolApproval,
+            toolApprovalSecret: toolApprovalSecret,
+            timeout: timeout,
+            runtimeContext: runtimeContext,
+            telemetry: telemetry,
+            compaction: compaction
         )
     }
 
@@ -180,7 +216,13 @@ public struct Agent: Sendable {
             prepareCall: prepareCall,
             prepareStep: prepareStep,
             onStepFinish: onStepFinish,
-            maxRetries: maxRetries
+            maxRetries: maxRetries,
+            toolApproval: toolApproval,
+            toolApprovalSecret: toolApprovalSecret,
+            timeout: timeout,
+            runtimeContext: runtimeContext,
+            telemetry: telemetry,
+            compaction: compaction
         )
     }
 }

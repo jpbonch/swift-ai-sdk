@@ -4,14 +4,14 @@ import FoundationNetworking
 #endif
 
 public struct AnthropicModel: LanguageModel {
-    public let provider = "anthropic"
+    public let provider: String
     public let modelID: String
 
-    private let apiKey: String
-    private let baseURL: URL
-    private let anthropicVersion: String
-    private let headers: [String: String]
-    private let urlSession: URLSession
+    let apiKey: String
+    let baseURL: URL
+    let anthropicVersion: String
+    let headers: [String: String]
+    let urlSession: URLSession
 
     public init(
         _ modelID: String,
@@ -21,12 +21,33 @@ public struct AnthropicModel: LanguageModel {
         headers: [String: String] = [:],
         urlSession: URLSession = .shared
     ) {
+        self.init(
+            modelID,
+            apiKey: apiKey ?? ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] ?? "",
+            baseURL: baseURL,
+            anthropicVersion: anthropicVersion,
+            headers: headers,
+            urlSession: urlSession,
+            providerName: "anthropic"
+        )
+    }
+
+    init(
+        _ modelID: String,
+        apiKey: String,
+        baseURL: URL,
+        anthropicVersion: String,
+        headers: [String: String],
+        urlSession: URLSession,
+        providerName: String
+    ) {
         self.modelID = modelID
-        self.apiKey = apiKey ?? ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] ?? ""
+        self.apiKey = apiKey
         self.baseURL = baseURL
         self.anthropicVersion = anthropicVersion
         self.headers = headers
         self.urlSession = urlSession
+        self.provider = providerName
     }
 
     public func stream(
@@ -132,7 +153,7 @@ public struct AnthropicModel: LanguageModel {
         }
     }
 
-    private func buildURLRequest(_ request: LanguageModelRequest) throws -> URLRequest {
+    func buildURLRequest(_ request: LanguageModelRequest) throws -> URLRequest {
         var urlRequest = URLRequest(url: baseURL.appendingPathComponent("messages"))
         urlRequest.httpMethod = "POST"
         urlRequest.setValue(apiKey, forHTTPHeaderField: "x-api-key")
@@ -178,7 +199,14 @@ public struct AnthropicModel: LanguageModel {
         "anthropic.memory_20250818": "context-management-2025-06-27",
         "anthropic.web_fetch_20250910": "web-fetch-2025-09-10",
         "anthropic.web_fetch_20260209": "code-execution-web-tools-2026-02-09",
-        "anthropic.web_search_20260209": "code-execution-web-tools-2026-02-09"
+        "anthropic.web_search_20260209": "code-execution-web-tools-2026-02-09",
+        "anthropic.code_execution_20260120": "code-execution-web-tools-2026-02-09",
+        "anthropic.code_execution_20260521": "code-execution-web-tools-2026-02-09",
+        "anthropic.web_fetch_20260309": "code-execution-web-tools-2026-02-09",
+        "anthropic.web_fetch_20260318": "code-execution-web-tools-2026-02-09",
+        "anthropic.web_search_20260318": "code-execution-web-tools-2026-02-09",
+        "anthropic.advisor_20260301": "advisor-tool-2026-03-01",
+        "anthropic.mcp_toolset": "mcp-client-2025-11-20"
     ]
 
     static func requestBody(for request: LanguageModelRequest, modelID: String) -> JSONValue {
@@ -195,12 +223,19 @@ public struct AnthropicModel: LanguageModel {
         if !request.stopSequences.isEmpty {
             body["stop_sequences"] = .array(request.stopSequences.map { .string($0) })
         }
-        var tools: [JSONValue] = request.functionTools.map {
-            .object([
-                "name": .string($0.name),
-                "description": .string($0.description),
-                "input_schema": $0.parameters
-            ])
+        var tools: [JSONValue] = request.functionTools.map { tool in
+            var declaration: [String: JSONValue] = [
+                "name": .string(tool.name),
+                "description": .string(tool.description),
+                "input_schema": tool.parameters
+            ]
+            if !tool.inputExamples.isEmpty {
+                declaration["input_examples"] = .array(tool.inputExamples)
+            }
+            for (key, value) in Self.loadingFields(tool.loading) {
+                declaration[key] = value
+            }
+            return .object(declaration)
         }
         if case .json(let schema, let name, let description) = request.responseFormat {
             tools.append(.object([
@@ -221,8 +256,12 @@ public struct AnthropicModel: LanguageModel {
                 body["tool_choice"] = .object(["type": "tool", "name": .string(name)])
             }
         }
-        tools.append(contentsOf: request.providerToolEntries(for: "anthropic"))
+        let (providerTools, mcpServers) = hoistMCPServers(
+            request.providerToolEntries(for: "anthropic")
+        )
+        tools.append(contentsOf: providerTools)
         if !tools.isEmpty { body["tools"] = .array(tools) }
+        if !mcpServers.isEmpty { body["mcp_servers"] = .array(mcpServers) }
         for (key, value) in reasoningFields(
             request.reasoning, modelID: modelID, maxOutputTokens: request.maxOutputTokens
         ) {
@@ -277,6 +316,51 @@ public struct AnthropicModel: LanguageModel {
         return ClaudeCapabilities(
             maxOutputTokens: 4096, supportsAdaptiveThinking: false, supportsXhighEffort: false
         )
+    }
+
+    /// An `mcp_toolset` entry names a server that has to be declared in a
+    /// top-level `mcp_servers` array, not inline. `ProviderDefinedTool` only
+    /// reaches the `tools` array, so the server travels under a private key and
+    /// is lifted out here.
+    static let mcpServerKey = "__mcp_server"
+
+    static func hoistMCPServers(
+        _ entries: [JSONValue]
+    ) -> (tools: [JSONValue], servers: [JSONValue]) {
+        var tools: [JSONValue] = []
+        var servers: [JSONValue] = []
+        var seen: Set<String> = []
+
+        for entry in entries {
+            guard var object = entry.objectValue, let server = object[mcpServerKey] else {
+                tools.append(entry)
+                continue
+            }
+            object[mcpServerKey] = nil
+            tools.append(.object(object))
+            guard let name = server["name"]?.stringValue, seen.insert(name).inserted else {
+                continue
+            }
+            servers.append(server)
+        }
+
+        return (tools, servers)
+    }
+
+    static func loadingFields(_ loading: ToolLoading) -> [String: JSONValue] {
+        var fields: [String: JSONValue] = [:]
+        if let strict = loading.strict { fields["strict"] = .bool(strict) }
+        if let deferLoading = loading.deferLoading {
+            fields["defer_loading"] = .bool(deferLoading)
+        }
+        if let allowedCallers = loading.allowedCallers {
+            fields["allowed_callers"] = .array(allowedCallers.map { .string($0) })
+        }
+        if let cacheControl = loading.cacheControl { fields["cache_control"] = cacheControl }
+        if let eager = loading.eagerInputStreaming {
+            fields["eager_input_streaming"] = .bool(eager)
+        }
+        return fields
     }
 
     static func adaptiveEffort(
@@ -342,10 +426,21 @@ public struct AnthropicModel: LanguageModel {
             case .text(let t):
                 return .object(["type": "text", "text": .string(t)])
             case .image(let image):
+                if let fileID = image.fileID(for: "anthropic") {
+                    return .object(["type": "image", "source": .object([
+                        "type": "file", "file_id": .string(fileID)
+                    ])])
+                }
                 return .object(["type": "image", "source": imageSource(
                     data: image.data, url: image.url, mediaType: image.resolvedMediaType
                 )])
             case .file(let file):
+                if let fileID = file.fileID(for: "anthropic") {
+                    let kind = file.mediaType.hasPrefix("image/") ? "image" : "document"
+                    return .object(["type": .string(kind), "source": .object([
+                        "type": "file", "file_id": .string(fileID)
+                    ])])
+                }
                 return fileBlock(file)
             case .toolCall(let call):
                 return .object([
@@ -519,7 +614,7 @@ public extension AnthropicModel {
         }
 
         public static func codeExecution(
-            version: String = "code_execution_20250522",
+            version: String = "code_execution_20260521",
             name: String = "code_execution"
         ) -> ProviderDefinedTool {
             ProviderDefinedTool(
@@ -580,6 +675,100 @@ public extension AnthropicModel {
             ProviderDefinedTool(
                 provider: "anthropic", id: "anthropic.\(version)", name: name,
                 args: .object(["type": .string(version), "name": .string(name)])
+            )
+        }
+
+        public static func advisor(
+            model: String,
+            maxUses: Int? = nil,
+            caching: JSONValue? = nil,
+            version: String = "advisor_20260301",
+            name: String = "advisor"
+        ) -> ProviderDefinedTool {
+            var args: [String: JSONValue] = [
+                "type": .string(version),
+                "name": .string(name),
+                "model": .string(model)
+            ]
+            if let maxUses { args["max_uses"] = .number(Double(maxUses)) }
+            if let caching { args["caching"] = caching }
+            return ProviderDefinedTool(
+                provider: "anthropic", id: "anthropic.\(version)", name: name, args: .object(args)
+            )
+        }
+
+        public static func toolSearchBm25(
+            version: String = "tool_search_tool_bm25_20251119",
+            name: String = "tool_search_tool_bm25"
+        ) -> ProviderDefinedTool {
+            ProviderDefinedTool(
+                provider: "anthropic", id: "anthropic.\(version)", name: name,
+                args: .object([
+                    "type": .string(version),
+                    "name": .string(name)
+                ])
+            )
+        }
+
+        public static func toolSearchRegex(
+            version: String = "tool_search_tool_regex_20251119",
+            name: String = "tool_search_tool_regex"
+        ) -> ProviderDefinedTool {
+            ProviderDefinedTool(
+                provider: "anthropic", id: "anthropic.\(version)", name: name,
+                args: .object([
+                    "type": .string(version),
+                    "name": .string(name)
+                ])
+            )
+        }
+
+        /// `allowedTools`, when given, enables exactly those tools and disables
+        /// the rest, which is what `configs` plus a `default_config` of
+        /// `enabled: false` expresses on the wire.
+        public static func mcpToolset(
+            serverURL: String,
+            serverName: String,
+            authorizationToken: String? = nil,
+            allowedTools: [String]? = nil,
+            deferLoading: Bool? = nil,
+            cacheControl: JSONValue? = nil,
+            configuration: JSONValue? = nil,
+            name: String = "mcp_toolset"
+        ) -> ProviderDefinedTool {
+            var server: [String: JSONValue] = [
+                "type": .string("url"),
+                "url": .string(serverURL),
+                "name": .string(serverName)
+            ]
+            if let authorizationToken {
+                server["authorization_token"] = .string(authorizationToken)
+            }
+
+            var defaultConfig: [String: JSONValue] = [:]
+            if let deferLoading { defaultConfig["defer_loading"] = .bool(deferLoading) }
+            if allowedTools != nil { defaultConfig["enabled"] = .bool(false) }
+
+            var args: [String: JSONValue] = [
+                "type": .string("mcp_toolset"),
+                "mcp_server_name": .string(serverName),
+                mcpServerKey: .object(server)
+            ]
+            if !defaultConfig.isEmpty { args["default_config"] = .object(defaultConfig) }
+            if let allowedTools {
+                args["configs"] = .object(Dictionary(
+                    uniqueKeysWithValues: allowedTools.map {
+                        ($0, JSONValue.object(["enabled": .bool(true)]))
+                    }
+                ))
+            }
+            if let cacheControl { args["cache_control"] = cacheControl }
+            if case .object(let extra)? = configuration {
+                for (key, value) in extra { args[key] = value }
+            }
+            return ProviderDefinedTool(
+                provider: "anthropic", id: "anthropic.mcp_toolset", name: name,
+                args: .object(args)
             )
         }
     }

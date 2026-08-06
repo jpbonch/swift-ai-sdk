@@ -1,0 +1,36 @@
+---
+title: "cosineSimilarity"
+description: "Cosine similarity between two vectors."
+---
+
+Pure arithmetic, no network call. Returns a value from -1 to 1, where 1 means
+the vectors point the same way.
+
+Vectors of different lengths, or a zero vector, return 0 rather than throwing.
+
+```swift
+let score = cosineSimilarity(queryVector, documentVector)
+```
+
+## Signature
+
+```swift
+func cosineSimilarity(
+    _ a: [Double],
+    _ b: [Double]
+) -> Double
+```
+
+Defined in `Sources/AI/Core/Embeddings.swift`.
+
+## Parameters
+
+<Parameters name="cosineSimilarity" />
+
+## Returns
+
+A `Double` between -1 and 1.
+
+## See also
+
+- [Embeddings](/docs/embeddings)

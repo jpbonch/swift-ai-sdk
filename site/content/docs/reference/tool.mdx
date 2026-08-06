@@ -1,0 +1,164 @@
+---
+title: "Tool"
+description: "A function the model can call, with a name, a description, and a parameter schema."
+---
+
+A tool is a name, a description, a schema for its arguments, and a closure
+that runs when the model calls it. The description isn't decoration. It's the
+only thing the model reads when deciding whether this tool applies, so it's
+worth as much care as the code.
+
+The loop in `generateText` and `streamText` executes tools for you and feeds
+their results back to the model. You only write the closure.
+
+Modifiers on a tool change how the loop treats it. `.idempotent()` marks a
+tool as safe to call again with the same arguments, which lets compaction drop
+its result knowing it can be recovered.
+
+```swift
+let weather = Tool(
+  name: "get_weather",
+  description: "Current conditions for a city.",
+  parameters: .object(["city": .string(description: "City name")])
+) { args, _ in
+  let city = args["city"]?.stringValue ?? "London"
+  return .string(try await fetchWeather(city))
+}.idempotent()
+```
+
+## Declaration
+
+```swift
+public struct Tool
+```
+
+Defined in `Sources/AI/Core/Tool.swift`.
+
+## Initializers
+
+```swift
+init(
+    name: String,
+    description: String,
+    parameters: JSONValue,
+    inputExamples: [JSONValue] = [],
+    needsApproval: Bool = false,
+    execute: @escaping @Sendable (JSONValue, ToolExecutionOptions) async throws -> JSONValue
+)
+```
+
+```swift
+init(
+    name: String,
+    description: String,
+    parameters: JSONValue,
+    inputExamples: [JSONValue] = [],
+    needsApproval: Bool = false,
+    execute: @escaping @Sendable (JSONValue) async throws -> JSONValue
+)
+```
+
+```swift
+init(
+    name: String,
+    description: String,
+    parameters: JSONValue,
+    inputExamples: [JSONValue] = [],
+    needsApproval: @escaping @Sendable (JSONValue) async -> Bool,
+    execute: @escaping @Sendable (JSONValue) async throws -> JSONValue
+)
+```
+
+```swift
+init(
+    name: String,
+    description: String,
+    parameters: JSONValue,
+    inputExamples: [JSONValue] = []
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `let name` | `String` | — |
+| `var description` | `String` | — |
+| `let parameters` | `JSONValue` | — |
+| `var inputExamples` | `[JSONValue]` | `[]` |
+| `var contextSchema` | `Schema?` | — |
+| `var isDynamic` | `Bool` | `false` |
+| `var isIdempotent` | `Bool` | `false` |
+| `var loading` | `ToolLoading` | `.none` |
+| `var describeWithContext` | `(@Sendable (JSONValue?) -> String)?` | — |
+| `var modelOutput` | `(@Sendable (JSONValue) -> [ContentPart]?)?` | `nil` |
+| `var hasExecutor` | `Bool { run !` | `nil || contextualRun != nil }` |
+
+## Methods
+
+```swift
+func toModelOutput(
+    _ output: JSONValue
+) -> [ContentPart]?
+```
+
+```swift
+func needsApproval(
+    _ arguments: JSONValue
+) async -> Bool
+```
+
+```swift
+func description(
+    context: JSONValue?
+) -> String
+```
+
+```swift
+func resolvingDescription(
+    _ description: String
+) -> any AIToolProtocol
+```
+
+```swift
+func execute(
+    _ arguments: JSONValue
+) async throws -> JSONValue
+```
+
+```swift
+func execute(
+    _ arguments: JSONValue,
+    options: ToolExecutionOptions
+) async throws -> JSONValue
+```
+
+```swift
+func withContextSchema(
+    _ schema: Schema
+) -> Tool
+```
+
+```swift
+func idempotent(
+    _ isIdempotent: Bool = true
+) -> Tool
+```
+
+```swift
+func describing(
+    _ describe: @escaping @Sendable (JSONValue?) -> String
+) -> Tool
+```
+
+```swift
+func loading(
+    _ loading: ToolLoading
+) -> Tool
+```
+
+## See also
+
+- [Tools guide](/docs/tools)
+- [Agent](/docs/reference/agent)
+- [ToolChoice](/docs/reference/tool-choice)

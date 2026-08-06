@@ -1,0 +1,49 @@
+---
+title: "Troubleshooting"
+description: "Specific symptoms, why they happen, and what to change."
+icon: TriangleAlert
+---
+
+Each page here covers one symptom: what you see, why it happens, and the fix.
+For the full list of error cases with their meanings, see the
+[errors reference](/docs/reference/errors).
+
+## Tools
+
+<Cards>
+  <Card title="AIError.missingToolResults" href="/docs/troubleshooting/missing-tool-results" description="A conversation was sent on with tool calls that have no matching results." />
+  <Card title="AIError.unknownTool" href="/docs/troubleshooting/unknown-tool" description="The model called a tool that was not in the tools array." />
+  <Card title="AIError.invalidToolInput" href="/docs/troubleshooting/invalid-tool-input" description="Tool arguments failed schema validation, so the tool never ran." />
+  <Card title="AIError.invalidToolApproval" href="/docs/troubleshooting/invalid-tool-approval" description="An approval response failed verification." />
+  <Card title="A tool is offered but never runs" href="/docs/troubleshooting/tool-never-executes" description="The model calls a tool and the loop stops instead of executing it." />
+</Cards>
+
+## Output
+
+<Cards>
+  <Card title="AIError.noObjectGenerated" href="/docs/troubleshooting/no-object-generated" description="Structured output did not parse or validate." />
+  <Card title="AIError.decoding" href="/docs/troubleshooting/decoding-error" description="A response arrived but did not match the expected shape." />
+</Cards>
+
+## Limits and timeouts
+
+<Cards>
+  <Card title="Running out of context on a long run" href="/docs/troubleshooting/context-window-exceeded" description="A long agent loop fails or degrades once the history outgrows the window." />
+  <Card title="AIError.timedOut" href="/docs/troubleshooting/timed-out" description="A timeout fired. The scope tells you which one and what to change." />
+</Cards>
+
+## Providers and auth
+
+<Cards>
+  <Card title="HTTP 401 from a provider" href="/docs/troubleshooting/http-401-unauthorized" description="The API key is missing, wrong, or not reaching the provider." />
+  <Card title="Cannot reach a local model server" href="/docs/troubleshooting/ollama-connection-refused" description="Ollama or another local server is not running, or is on a different port." />
+  <Card title="AIError.authorizationRequired from an MCP server" href="/docs/troubleshooting/mcp-authorization-required" description="A hosted MCP server needs an OAuth sign-in that could not be refreshed." />
+  <Card title="Apple on-device model is unavailable" href="/docs/troubleshooting/on-device-model-unavailable" description="Foundation Models is not ready on this machine." />
+</Cards>
+
+## Streaming and UI
+
+<Cards>
+  <Card title="A stream stops before the answer finishes" href="/docs/troubleshooting/stream-ends-early" description="Output is cut off mid-sentence with no error." />
+  <Card title="Tool parts overwrite each other in the UI" href="/docs/troubleshooting/duplicate-tool-parts-in-ui" description="A repeated tool call id collapses two calls into one card." />
+</Cards>

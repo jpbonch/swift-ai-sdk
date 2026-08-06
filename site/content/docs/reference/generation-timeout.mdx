@@ -1,0 +1,64 @@
+---
+title: "GenerationTimeout"
+description: "Deadlines for a generation: total wall clock, and how long a silent stream may stall."
+---
+
+Two different failures need two different limits. A call that runs too long
+overall is one problem; a stream that opens fine and then goes quiet is
+another, and a total timeout catches the second one far too late.
+
+So this carries both: a ceiling on the whole call, and a ceiling on the gap
+between chunks. Either one firing cancels the request.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: prompt,
+  timeout: GenerationTimeout(total: .seconds(60), stall: .seconds(10))
+)
+```
+
+## Declaration
+
+```swift
+public struct GenerationTimeout
+```
+
+Defined in `Sources/AI/Core/Timeouts.swift`.
+
+## Initializer
+
+```swift
+init(
+    total: Duration? = nil,
+    step: Duration? = nil,
+    firstChunk: Duration? = nil,
+    chunk: Duration? = nil,
+    tool: Duration? = nil,
+    tools: [String: Duration] = [:]
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var total` | `Duration?` | — |
+| `var step` | `Duration?` | — |
+| `var firstChunk` | `Duration?` | — |
+| `var chunk` | `Duration?` | — |
+| `var tool` | `Duration?` | — |
+| `var tools` | `[String: Duration]` | — |
+
+## Methods
+
+```swift
+func limit(
+    forTool name: String
+) -> Duration?
+```
+
+## See also
+
+- [Timeouts and approvals](/docs/timeouts-and-approvals)
+- [Timed out](/docs/troubleshooting/timed-out)

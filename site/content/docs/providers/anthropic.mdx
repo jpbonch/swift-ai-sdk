@@ -41,7 +41,54 @@ let result = try await generateText(
 
 Each builder takes a `version:` for the dated tool variants
 (`web_search_20250305`, `computer_20250124`, ...); the defaults track
-the current stable release.
+the current stable release. Newer versions are wired too, with their beta
+headers: `web_search_20260318`, `web_fetch_20260318` / `20260309`,
+`code_execution_20260521` / `20260120` / `20250825`, `computer_20251124`,
+plus `advisor`, `toolSearchBm25` / `toolSearchRegex`, and `mcpToolset` for
+the MCP connector. The three current code-execution versions are GA and need
+no beta header; `code_execution_20250522` is the legacy Python-only build and
+is no longer the default.
+
+## Tool definition properties
+
+Anthropic accepts optional properties on *any* tool — built-in or your own.
+`Tool.loading(_:)` carries them:
+
+```swift
+let deleteFile = Tool(name: "deleteFile", description: …, parameters: …) { … }
+  .loading(ToolLoading(
+    strict: true,                                  // validate names and inputs
+    deferLoading: true,                            // keep out of the cached prompt
+    allowedCallers: ["code_execution_20260120"],   // sandbox-only
+    eagerInputStreaming: true                      // fine-grained input streaming
+  ))
+```
+
+`.ephemeralCache()` sets a `cache_control` breakpoint at the tool definition,
+and `.codeExecutionOnly()` is shorthand for the sandbox-only caller list. It
+defaults to `code_execution_20260120`, the caller Anthropic documents for
+programmatic tool calling — the same value `web_search_20260209` and later
+default to. That is deliberately *not* the version `Tools.codeExecution()`
+sends by default (`code_execution_20260521`): if you want the model to call
+your tool from inside the sandbox, declare
+`Tools.codeExecution(version: "code_execution_20260120")` so the caller
+matches. Pass `codeExecutionOnly(version:)` to pin a different one.
+`defer_loading` keeps a tool out of the cached system-prompt prefix until
+tool search surfaces it, so adding deferred tools does not invalidate an
+existing prompt cache.
+
+A tool's `inputExamples` are sent natively as `input_examples` here, so the
+description stays clean — the
+[`addToolInputExamples` middleware](/docs/middleware) is only needed for
+providers with no native field.
+
+## Platform APIs
+
+- `AnthropicBatchClient` — Message Batches: `create`, `list`, `get`,
+  `results` (streamed JSONL, decoded per line), `cancel`, `delete`.
+- `AnthropicModelsClient` — `list` and `get` for the model catalog.
+- `AnthropicModel.countTokens(_:tools:system:)` — pre-flight sizing against
+  `/v1/messages/count_tokens`, with the same beta headers your tools require.
 
 ## Models
 

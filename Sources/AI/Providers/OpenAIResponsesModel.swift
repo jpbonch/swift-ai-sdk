@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 
 public struct OpenAIModel: LanguageModel {
-    public let provider = "openai"
+    public let provider: String
     public let modelID: String
 
     private enum Backend: Sendable {
@@ -12,11 +12,47 @@ public struct OpenAIModel: LanguageModel {
         case chat(OpenAIChatModel)
     }
 
+    public struct MultiAgent: Sendable, Hashable {
+        public var enabled: Bool
+        public var maxConcurrentSubagents: Int?
+
+        public init(enabled: Bool = true, maxConcurrentSubagents: Int? = nil) {
+            self.enabled = enabled
+            self.maxConcurrentSubagents = maxConcurrentSubagents
+        }
+
+        public static let betaHeader = "responses_multi_agent=v1"
+
+        var wire: JSONValue {
+            var body: [String: JSONValue] = ["enabled": .bool(enabled)]
+            if let maxConcurrentSubagents {
+                body["max_concurrent_subagents"] = .number(Double(maxConcurrentSubagents))
+            }
+            return .object(body)
+        }
+    }
+
     struct ResponsesConfig: Sendable {
         var apiKey: String
         var baseURL: URL
         var headers: [String: String]
         var urlSession: URLSession
+        var multiAgent: MultiAgent? = nil
+        var dialect: ResponsesDialect = .openai
+    }
+
+    struct ResponsesDialect: Sendable {
+        var provider: String
+        var alwaysReasons: Bool
+        var supportsDisablingReasoning: Bool
+        var dropsSamplingWhenReasoning: Bool
+
+        static let openai = ResponsesDialect(
+            provider: "openai",
+            alwaysReasons: false,
+            supportsDisablingReasoning: true,
+            dropsSamplingWhenReasoning: true
+        )
     }
 
     private let backend: Backend
@@ -27,17 +63,42 @@ public struct OpenAIModel: LanguageModel {
         baseURL: URL? = nil,
         organization: String? = nil,
         project: String? = nil,
+        multiAgent: MultiAgent? = nil,
         headers: [String: String] = [:],
         urlSession: URLSession = .shared
     ) {
-        self.modelID = modelID
-        self.backend = .responses(ResponsesConfig(
+        self.init(
+            modelID,
             apiKey: apiKey ?? ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? "",
             baseURL: baseURL ?? Self.defaultBaseURL(),
+            multiAgent: multiAgent,
             headers: Self.mergedHeaders(
                 organization: organization, project: project, headers: headers
             ),
-            urlSession: urlSession
+            urlSession: urlSession,
+            providerName: "openai"
+        )
+    }
+
+    init(
+        _ modelID: String,
+        apiKey: String,
+        baseURL: URL,
+        multiAgent: MultiAgent? = nil,
+        headers: [String: String],
+        urlSession: URLSession,
+        providerName: String,
+        dialect: ResponsesDialect = .openai
+    ) {
+        self.modelID = modelID
+        self.provider = providerName
+        self.backend = .responses(ResponsesConfig(
+            apiKey: apiKey,
+            baseURL: baseURL,
+            headers: headers,
+            urlSession: urlSession,
+            multiAgent: multiAgent,
+            dialect: dialect
         ))
     }
 
@@ -63,6 +124,7 @@ public struct OpenAIModel: LanguageModel {
 
     private init(modelID: String, chatEngine: OpenAIChatModel) {
         self.modelID = modelID
+        self.provider = chatEngine.provider
         self.backend = .chat(chatEngine)
     }
 
@@ -207,6 +269,25 @@ public struct OpenAIModel: LanguageModel {
                                 continuation.yield(.toolCall(ToolCall(
                                     id: callID, name: "computer_use_preview", arguments: .object(args)
                                 )))
+                            } else if itemType == "multi_agent_call" {
+                                var payload: [String: JSONValue] = ["id": .string(itemID)]
+                                for key in ["name", "action", "agent", "agent_path", "arguments", "status", "output"] {
+                                    if let value = item[key] { payload[key] = value }
+                                }
+                                continuation.yield(.providerMetadata(.object([
+                                    "openai": .object(["multiAgentCall": .object(payload)])
+                                ])))
+                            } else if let toolName = Self.hostedToolName(for: itemType) {
+                                // Shell, apply_patch and custom tools run on
+                                // the caller's side: surface them as ordinary
+                                // client tool calls so the loop stops and hands
+                                // them over, rather than dropping them.
+                                let callID = item["call_id"]?.stringValue ?? itemID
+                                hadFunctionCall = true
+                                continuation.yield(.toolCall(ToolCall(
+                                    id: callID, name: toolName,
+                                    arguments: Self.hostedToolInput(itemType, item)
+                                )))
                             } else if let toolName = Self.serverToolName(for: itemType) {
                                 let (input, result) = Self.serverToolPayload(itemType, item)
                                 continuation.yield(.toolCall(ToolCall(
@@ -294,6 +375,36 @@ public struct OpenAIModel: LanguageModel {
         }
     }
 
+    /// Client-executed tools: OpenAI emits the call, the app runs it, and the
+    /// result goes back as the matching `*_call_output` item.
+    static let hostedToolItemTypes: [String: String] = [
+        "local_shell_call": "local_shell",
+        "shell_call": "shell",
+        "apply_patch_call": "apply_patch",
+        "custom_tool_call": "custom"
+    ]
+
+    static func hostedToolName(for itemType: String) -> String? {
+        hostedToolItemTypes[itemType]
+    }
+
+    static func hostedOutputItemType(for toolName: String) -> String? {
+        guard let itemType = hostedToolItemTypes.first(where: { $0.value == toolName })?.key else {
+            return nil
+        }
+        return "\(itemType)_output"
+    }
+
+    static func hostedToolInput(_ itemType: String, _ item: JSONValue) -> JSONValue {
+        var input: [String: JSONValue] = [:]
+        for key in [
+            "action", "name", "input", "operation", "status", "container_id", "command"
+        ] where item[key] != nil {
+            input[key] = item[key]
+        }
+        return .object(input)
+    }
+
     static func serverToolName(for itemType: String) -> String? {
         switch itemType {
         case "web_search_call": return "web_search"
@@ -355,20 +466,43 @@ public struct OpenAIModel: LanguageModel {
         for (field, value) in config.headers {
             urlRequest.setValue(value, forHTTPHeaderField: field)
         }
-        urlRequest.httpBody = try JSONEncoder().encode(
-            responsesBody(for: request, modelID: modelID)
-        )
+
+        var body = responsesBody(
+            for: request, modelID: modelID, dialect: config.dialect
+        ).objectValue ?? [:]
+        if let multiAgent = config.multiAgent {
+            body["multi_agent"] = multiAgent.wire
+            // Header names are case-insensitive, and `setValue` below replaces
+            // whatever casing the caller used — so the lookup has to be too, or
+            // their beta flag is silently dropped.
+            let existing = config.headers.first {
+                $0.key.caseInsensitiveCompare("OpenAI-Beta") == .orderedSame
+            }?.value
+            let betas = [existing, MultiAgent.betaHeader]
+                .compactMap { $0 }
+                .joined(separator: ",")
+            urlRequest.setValue(betas, forHTTPHeaderField: "OpenAI-Beta")
+        }
+        urlRequest.httpBody = try JSONEncoder().encode(JSONValue.object(body))
         return urlRequest
     }
 
-    static func responsesBody(for request: LanguageModelRequest, modelID: String) -> JSONValue {
-        let reasoningModel = isReasoningModel(modelID)
+    static func responsesBody(
+        for request: LanguageModelRequest,
+        modelID: String,
+        dialect: ResponsesDialect = .openai
+    ) -> JSONValue {
+        let reasoningModel = dialect.alwaysReasons || isReasoningModel(modelID)
         let optionsEffort = request.providerOptions?["reasoning"]?["effort"]?.stringValue
-        let unifiedEffort: String? = optionsEffort == nil
+        var unifiedEffort: String? = optionsEffort == nil
             && reasoningModel && request.reasoning.isCustom
             ? request.reasoning.rawValue : nil
+        if unifiedEffort == "none" && !dialect.supportsDisablingReasoning {
+            unifiedEffort = nil
+        }
         let effort = optionsEffort ?? unifiedEffort
         let keepsSamplingParameters = !reasoningModel
+            || !dialect.dropsSamplingWhenReasoning
             || (supportsNonReasoningParameters(modelID) && effort == "none")
 
         var body: [String: JSONValue] = [
@@ -401,15 +535,24 @@ public struct OpenAIModel: LanguageModel {
         }
 
         let functionTools = request.functionTools
-        let providerTools = request.providerToolEntries(for: "openai")
+        let providerTools = request.providerToolEntries(for: dialect.provider)
         if !functionTools.isEmpty || !providerTools.isEmpty {
-            var toolsArray: [JSONValue] = functionTools.map {
-                .object([
+            var toolsArray: [JSONValue] = functionTools.map { tool in
+                var declaration: [String: JSONValue] = [
                     "type": "function",
-                    "name": .string($0.name),
-                    "description": .string($0.description),
-                    "parameters": $0.parameters
-                ])
+                    "name": .string(tool.name),
+                    "description": .string(tool.description),
+                    "parameters": tool.parameters
+                ]
+                // Tool search only saves anything if the tools it is meant to
+                // discover are actually marked deferred.
+                if let deferLoading = tool.loading.deferLoading {
+                    declaration["defer_loading"] = .bool(deferLoading)
+                }
+                if let strict = tool.loading.strict {
+                    declaration["strict"] = .bool(strict)
+                }
+                return .object(declaration)
             }
             toolsArray.append(contentsOf: providerTools)
             body["tools"] = .array(toolsArray)
@@ -492,6 +635,18 @@ public struct OpenAIModel: LanguageModel {
                             "action": call.arguments["action"] ?? .object([:]),
                             "pending_safety_checks": call.arguments["pending_safety_checks"] ?? .array([])
                         ]))
+                    case .toolCall(let call) where hostedToolItemTypes.values.contains(call.name):
+                        var echoed: [String: JSONValue] = [
+                            "type": .string(
+                                hostedToolItemTypes.first { $0.value == call.name }?.key
+                                    ?? "function_call"
+                            ),
+                            "call_id": .string(call.id)
+                        ]
+                        for (key, value) in call.arguments.objectValue ?? [:] {
+                            echoed[key] = value
+                        }
+                        items.append(.object(echoed))
                     case .toolCall(let call):
                         let argsData = (try? JSONEncoder().encode(call.arguments)) ?? Data("{}".utf8)
                         items.append(.object([
@@ -534,11 +689,17 @@ public struct OpenAIModel: LanguageModel {
                         let data = (try? JSONEncoder().encode(result.output)) ?? Data()
                         output = String(decoding: data, as: UTF8.self)
                     }
-                    items.append(.object([
-                        "type": "function_call_output",
+                    var item: [String: JSONValue] = [
+                        "type": .string(
+                            hostedOutputItemType(for: result.name) ?? "function_call_output"
+                        ),
                         "call_id": .string(result.toolCallID),
                         "output": .string(output)
-                    ]))
+                    ]
+                    if result.name == "apply_patch" {
+                        item["status"] = .string(result.isError ? "failed" : "completed")
+                    }
+                    items.append(.object(item))
                 }
             }
         }
@@ -550,6 +711,16 @@ public struct OpenAIModel: LanguageModel {
             switch part {
             case .text(let text) where !text.isEmpty:
                 return .object(["type": "input_text", "text": .string(text)])
+            case .image(let image) where image.fileID(for: "openai") != nil:
+                return .object([
+                    "type": "input_image",
+                    "file_id": .string(image.fileID(for: "openai") ?? "")
+                ])
+            case .file(let file) where file.fileID(for: "openai") != nil:
+                return .object([
+                    "type": file.mediaType.hasPrefix("image/") ? "input_image" : "input_file",
+                    "file_id": .string(file.fileID(for: "openai") ?? "")
+                ])
             case .image(let image):
                 return .object([
                     "type": "input_image",
@@ -669,6 +840,132 @@ public extension OpenAIModel {
                     "display_height": .number(Double(displayHeight)),
                     "environment": .string(environment)
                 ])
+            )
+        }
+
+        public static func imageGeneration(
+            background: String? = nil,
+            inputFidelity: String? = nil,
+            inputImageMask: JSONValue? = nil,
+            model: String? = nil,
+            moderation: String? = nil,
+            outputCompression: Int? = nil,
+            outputFormat: String? = nil,
+            partialImages: Int? = nil,
+            quality: String? = nil,
+            size: String? = nil,
+            name: String = "image_generation"
+        ) -> ProviderDefinedTool {
+            var args: [String: JSONValue] = ["type": "image_generation"]
+            if let background { args["background"] = .string(background) }
+            if let inputFidelity { args["input_fidelity"] = .string(inputFidelity) }
+            if let inputImageMask { args["input_image_mask"] = inputImageMask }
+            if let model { args["model"] = .string(model) }
+            if let moderation { args["moderation"] = .string(moderation) }
+            if let outputCompression {
+                args["output_compression"] = .number(Double(outputCompression))
+            }
+            if let outputFormat { args["output_format"] = .string(outputFormat) }
+            if let partialImages { args["partial_images"] = .number(Double(partialImages)) }
+            if let quality { args["quality"] = .string(quality) }
+            if let size { args["size"] = .string(size) }
+            return ProviderDefinedTool(
+                provider: "openai", id: "openai.image_generation", name: name, args: .object(args)
+            )
+        }
+
+        public static func localShell(name: String = "local_shell") -> ProviderDefinedTool {
+            ProviderDefinedTool(
+                provider: "openai", id: "openai.local_shell", name: name,
+                args: .object(["type": "local_shell"])
+            )
+        }
+
+        public static func shell(
+            environment: JSONValue? = nil,
+            name: String = "shell"
+        ) -> ProviderDefinedTool {
+            var args: [String: JSONValue] = ["type": "shell"]
+            if let environment { args["environment"] = environment }
+            return ProviderDefinedTool(
+                provider: "openai", id: "openai.shell", name: name, args: .object(args)
+            )
+        }
+
+        public static func applyPatch(name: String = "apply_patch") -> ProviderDefinedTool {
+            ProviderDefinedTool(
+                provider: "openai", id: "openai.apply_patch", name: name,
+                args: .object(["type": "apply_patch"])
+            )
+        }
+
+        public static func programmaticToolCalling(
+            name: String = "programmatic_tool_calling"
+        ) -> ProviderDefinedTool {
+            ProviderDefinedTool(
+                provider: "openai", id: "openai.programmatic_tool_calling", name: name,
+                args: .object(["type": "programmatic_tool_calling"])
+            )
+        }
+
+        public static func toolSearch(
+            execution: String? = nil,
+            description: String? = nil,
+            parameters: JSONValue? = nil,
+            name: String = "tool_search"
+        ) -> ProviderDefinedTool {
+            var args: [String: JSONValue] = ["type": "tool_search"]
+            if let execution { args["execution"] = .string(execution) }
+            if let description { args["description"] = .string(description) }
+            if let parameters { args["parameters"] = parameters }
+            return ProviderDefinedTool(
+                provider: "openai", id: "openai.tool_search", name: name, args: .object(args)
+            )
+        }
+
+        public static func customTool(
+            name: String,
+            description: String? = nil,
+            format: JSONValue? = nil
+        ) -> ProviderDefinedTool {
+            var args: [String: JSONValue] = ["type": "custom", "name": .string(name)]
+            if let description { args["description"] = .string(description) }
+            if let format { args["format"] = format }
+            return ProviderDefinedTool(
+                provider: "openai", id: "openai.custom", name: name, args: .object(args)
+            )
+        }
+
+        public static func mcpServer(
+            serverLabel: String,
+            serverURL: String? = nil,
+            connectorID: String? = nil,
+            authorization: String? = nil,
+            allowedTools: [String]? = nil,
+            headers: [String: String]? = nil,
+            requireApproval: JSONValue = .string("never"),
+            serverDescription: String? = nil,
+            name: String = "mcp"
+        ) -> ProviderDefinedTool {
+            var args: [String: JSONValue] = [
+                "type": "mcp",
+                "server_label": .string(serverLabel),
+                "require_approval": requireApproval
+            ]
+            if let serverURL { args["server_url"] = .string(serverURL) }
+            if let connectorID { args["connector_id"] = .string(connectorID) }
+            if let authorization { args["authorization"] = .string(authorization) }
+            if let allowedTools {
+                args["allowed_tools"] = .array(allowedTools.map { .string($0) })
+            }
+            if let headers {
+                args["headers"] = .object(headers.mapValues { .string($0) })
+            }
+            if let serverDescription {
+                args["server_description"] = .string(serverDescription)
+            }
+            return ProviderDefinedTool(
+                provider: "openai", id: "openai.mcp", name: name, args: .object(args)
             )
         }
     }

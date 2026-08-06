@@ -4,11 +4,13 @@ description: generateText, streamText, and the agentic loop underneath them.
 icon: Type
 ---
 
-Everything in this library sits on one loop: call the model, run any
-tools it asks for, feed the results back, repeat until it answers.
-`generateText` gives you the finished result; `streamText` hands you
-every event as it happens. Learn this page and the rest of the docs are
-just variations.
+`generateText` gives you the finished result; `streamText` hands you every
+event as it happens. Both drive the same loop underneath, and the rest of the
+docs are variations on this page.
+
+If the loop itself is new to you, read [the loop](/docs/foundations/the-loop)
+first. It covers what a step is and why there's a limit on how many the run may
+take.
 
 ## generateText
 

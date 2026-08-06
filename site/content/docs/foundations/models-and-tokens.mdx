@@ -1,0 +1,70 @@
+---
+title: Models and tokens
+description: Context windows, why the same prompt gives different answers, and what temperature does.
+icon: Cpu
+---
+
+Models don't read characters or words. They read tokens, which are chunks of a
+few characters each. English averages roughly four characters per token, so a
+thousand words comes to about 1,300 tokens. Code and non-Latin scripts run
+higher.
+
+Tokens matter because everything is priced, limited, and measured in them.
+
+## The context window
+
+A model can only consider so many tokens at once. That ceiling is its context
+window, and it covers all of it: system instructions, the entire message
+history, tool definitions, tool results, and the answer being written.
+
+Two things about this catch people out.
+
+The first is how fast it fills. Every step of
+[the loop](/docs/foundations/the-loop) resends the whole conversation, so a tool
+that returns a 40 KB JSON blob has just spent perhaps 10,000 tokens of your
+window. It stays spent for every step after that.
+
+The second is what happens when you exceed it. The request is rejected. The
+model does not quietly forget the oldest messages, so deciding what to drop is
+your job, which is what [context management](/docs/context-management) is for.
+
+Every model in this SDK reports its own window through `contextWindow`, so you
+can check before you send rather than after you fail.
+
+## Output limits are separate
+
+`maxOutputTokens` caps the answer, not the conversation. It's a different limit
+from the context window, and hitting it truncates mid-sentence instead of
+erroring. If answers keep stopping abruptly, start here.
+
+## Why the same prompt gives different answers
+
+At each position the model produces a probability distribution over possible
+next tokens, then samples from it. That sampling is deliberate. It's what makes
+output read as fluent rather than robotic. It also means identical inputs can
+give different outputs.
+
+`temperature` controls how much the distribution gets flattened before sampling.
+Low values concentrate on the likeliest tokens and give repetitive, predictable
+text. High values spread the probability out and give varied, sometimes
+incoherent text. There's no correct setting. Extraction and classification want
+it low; brainstorming wants it higher.
+
+`topP` and `topK` are alternative ways to cut off the tail of unlikely tokens.
+Reach for one of them or for temperature, not all three at once.
+
+`seed`, where a provider supports it, makes sampling reproducible. Same inputs
+and same seed, same output. Useful in tests, not guaranteed everywhere.
+
+## What this doesn't fix
+
+Turning temperature to zero doesn't make a model accurate. It makes it
+consistent. A model that confidently invents an API will now invent the same API
+every time. Accuracy comes from giving it the right context and checking what
+comes back, not from sampling settings.
+
+## Next
+
+- [Context management](/docs/context-management) covers what to do as a conversation grows
+- [Providers](/docs/providers) lists the models available and what each supports
+- [Context window exceeded](/docs/troubleshooting/context-window-exceeded) is what the failure looks like

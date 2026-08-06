@@ -1,0 +1,38 @@
+---
+title: "Running out of context on a long run"
+description: "A long agent loop fails or degrades once the history outgrows the window."
+---
+
+## Symptom
+
+An HTTP 400 from the provider mentioning tokens or context length, or a run
+that quietly gets worse the longer it goes.
+
+## Why it happens
+
+Every tool result stays in the history. A loop that reads files or searches
+accumulates context fast, and the biggest entries are usually tool output that
+is no longer relevant.
+
+## Fix
+
+Turn on compaction. It triggers itself when the history outgrows the working-set
+budget and keeps the goal, the decisions, and the failed approaches while
+compressing bulk tool output:
+
+```swift
+compaction: Compaction()
+```
+
+Mark read-only tools `.idempotent()` so their output can be replaced by a
+pointer the model can re-fetch. For a cheap structural fix with no model call,
+[`pruneMessages`](/docs/reference/prune-messages) deletes old tool traffic
+outright.
+
+If the budget looks wrong for your model, check `contextWindow` resolves: an
+unrecognized model id falls back to a conservative 128K.
+
+## See also
+
+- [Context management](/docs/context-management)
+- [pruneMessages](/docs/reference/prune-messages)

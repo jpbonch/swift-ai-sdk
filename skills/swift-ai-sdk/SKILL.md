@@ -2,13 +2,16 @@
 name: swift-ai-sdk
 description: >
   Build AI features in Swift for iOS and macOS with swift-ai-sdk — streaming text,
-  structured output, tools, agents, embeddings, speech, transcription, images, video,
-  realtime voice, computer use, and Apple's on-device models, across every provider (OpenAI,
-  Anthropic, Google, xAI, Bedrock, Groq, Mistral, DeepSeek, Perplexity, Cohere, Voyage,
-  Moonshot, Alibaba, HuggingFace, Cartesia, Sarvam, Ollama, and more). Use when writing Swift
-  that calls generateText / streamText / generateObject, builds an Agent or tool loop, wires a
-  ChatSession into SwiftUI, or adds realtime voice. Activate for swift-ai-sdk work even when it
-  isn't named.
+  structured output, tools, agents, embeddings, speech, transcription (batch and live),
+  images, video, music, realtime voice, computer use, terminal chat UIs, and Apple's
+  on-device models, across every provider (OpenAI, Anthropic, Google, xAI, Bedrock, Groq,
+  Mistral, DeepSeek, Perplexity, Cohere, Voyage, Moonshot, Alibaba, HuggingFace, Cartesia,
+  Sarvam, Ollama, and more) plus their platform APIs (files, batches, vector stores,
+  conversations, context caching, collections). Use when writing Swift that calls
+  generateText / streamText / generateObject, builds an Agent or tool loop, wires a
+  ChatSession into SwiftUI or runAgentTUI into a terminal, adds realtime voice, or needs
+  timeouts, tool-approval policy, or runtime context. Activate for swift-ai-sdk work even
+  when it isn't named.
 ---
 
 # swift-ai-sdk
@@ -20,7 +23,7 @@ model and nothing else in your code moves.
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/zaidmukaddam/swift-ai-sdk.git", from: "0.2.0")
+.package(url: "https://github.com/zaidmukaddam/swift-ai-sdk.git", from: "0.3.0")
 ```
 
 Add `"AI"` to your target's dependencies (and `"AITesting"` to test targets). Requires
@@ -53,7 +56,13 @@ Keys come from the provider's conventional environment variable (`ANTHROPIC_API_
 | A reusable agent | `Agent` |
 | Embeddings / rerank | `embed`, `embedMany` / `rerank` |
 | Speech, transcription, images, video | `generateSpeech`, `transcribe`, `generateImage`, `generateVideo` |
+| Live transcription | `streamTranscribe` |
 | A SwiftUI chat | `ChatSession` |
+| A terminal chat | `runAgentTUI` (`AITUI`) |
+| Tools from an MCP server | `MCPClient` (+ `MCPOAuthSession` for hosted) |
+| Bound a call / gate a tool | `timeout:`, `toolApproval:`, `toolApprovalSecret:` |
+| Trim a long history | `pruneMessages` (deletes) |
+| Keep a long run's substance | `compaction:` (summarizes, salience-aware) |
 | Realtime voice | `RealtimeSession` |
 
 ## References
@@ -67,11 +76,14 @@ files you need; don't read them all.
 | Text generation, settings, callbacks | `references/text-generation.md` |
 | Structured output + the Schema DSL | `references/structured-output.md` |
 | Tools: function, typed, approvals, provider-executed | `references/tools.md` |
+| Timeouts, approval policy, signed approvals, pruning | `references/timeouts-and-approvals.md` |
+| Runtime/tool context, dynamic tools, uploads, transports | `references/runtime-context.md` |
 | Agents, loop control, prepareCall/prepareStep/toolOrder | `references/agents.md` |
 | Providers: matrix, construction, provider tools, Sarvam | `references/providers.md` |
 | Reasoning effort per provider | `references/reasoning.md` |
 | Middleware: cache, extractReasoning, defaultSettings | `references/middleware.md` |
 | Chat UI: ChatSession, transport, stream protocol | `references/chat-ui.md` |
+| Terminal UI: runAgentTUI, display modes, approvals | `references/terminal-ui.md` |
 | Realtime voice | `references/realtime.md` |
 | Media: image, speech, transcription, video | `references/media.md` |
 | On-device (Apple Intelligence) | `references/on-device.md` |

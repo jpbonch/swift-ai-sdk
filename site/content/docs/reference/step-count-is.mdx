@@ -1,0 +1,34 @@
+---
+title: "stepCountIs"
+description: "Stop the tool loop after a number of steps."
+---
+
+The stop condition you will use most. Caps how many times the loop may call
+the model, which bounds both cost and the chance of an agent spinning.
+
+```swift
+stopWhen: [stepCountIs(5)]
+```
+
+## Signature
+
+```swift
+func stepCountIs(
+    _ count: Int
+) -> StopCondition
+```
+
+Defined in `Sources/AI/Core/StepControl.swift`.
+
+## Parameters
+
+<Parameters name="stepCountIs" />
+
+## Returns
+
+A `StopCondition`.
+
+## See also
+
+- [Agents](/docs/agents)
+- [hasToolCall](/docs/reference/has-tool-call)

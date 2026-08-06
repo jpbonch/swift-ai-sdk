@@ -61,6 +61,7 @@ public struct UIMessageReducer: Sendable {
             message.parts[index] = .reasoning(part)
 
         case .toolInputStart(let toolCallID, let toolName, let providerExecuted, let dynamic):
+            startFreshToolPartIfSettled(toolCallID)
             upsertTool(toolCallID) { part in
                 part.toolName = toolName
                 part.state = .inputStreaming
@@ -85,6 +86,7 @@ public struct UIMessageReducer: Sendable {
 
         case .toolInputAvailable(let toolCallID, let toolName, let input, let providerExecuted, let dynamic):
             toolInputBuffers[toolCallID] = nil
+            startFreshToolPartIfSettled(toolCallID)
             upsertTool(toolCallID) { part in
                 part.toolName = toolName
                 part.state = .inputAvailable
@@ -138,27 +140,38 @@ public struct UIMessageReducer: Sendable {
                 )
             }
 
-        case .toolApprovalRequest(let approvalID, let toolCallID):
+        case .toolApprovalRequest(
+            let approvalID, let toolCallID, let reason, let isAutomatic, let signature
+        ):
             approvalToolCalls[approvalID] = toolCallID
+            let approval = ToolApproval(
+                id: approvalID, reason: reason, isAutomatic: isAutomatic, signature: signature
+            )
             upsertTool(toolCallID) { part in
                 part.state = .approvalRequested
-                part.approval = ToolApproval(id: approvalID)
+                part.approval = approval
             } create: {
                 ToolUIPart(
                     toolName: "", toolCallID: toolCallID, state: .approvalRequested,
-                    approval: ToolApproval(id: approvalID)
+                    approval: approval
                 )
             }
 
-        case .toolApprovalResponse(let approvalID, let approved, let reason):
+        case .toolApprovalResponse(let approvalID, let approved, let reason, let signature):
             guard let toolCallID = approvalToolCalls[approvalID] else { return }
             upsertTool(toolCallID) { part in
+                let carried = signature ?? part.approval?.signature
                 part.state = .approvalResponded
-                part.approval = ToolApproval(id: approvalID, approved: approved, reason: reason)
+                part.approval = ToolApproval(
+                    id: approvalID, approved: approved, reason: reason,
+                    isAutomatic: part.approval?.isAutomatic, signature: carried
+                )
             } create: {
                 ToolUIPart(
                     toolName: "", toolCallID: toolCallID, state: .approvalResponded,
-                    approval: ToolApproval(id: approvalID, approved: approved, reason: reason)
+                    approval: ToolApproval(
+                        id: approvalID, approved: approved, reason: reason, signature: signature
+                    )
                 )
             }
 
@@ -232,6 +245,19 @@ public struct UIMessageReducer: Sendable {
             merged[key] = deepMerge(merged[key], value)
         }
         return .object(merged)
+    }
+
+    private mutating func startFreshToolPartIfSettled(_ toolCallID: String) {
+        guard let index = toolParts[toolCallID],
+              case .tool(let existing) = message.parts[index]
+        else { return }
+        switch existing.state {
+        case .outputAvailable, .outputError, .outputDenied:
+            toolParts[toolCallID] = nil
+            toolInputBuffers[toolCallID] = nil
+        default:
+            break
+        }
     }
 
     private mutating func upsertTool(

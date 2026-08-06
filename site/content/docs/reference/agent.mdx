@@ -1,0 +1,142 @@
+---
+title: "Agent"
+description: "A model, its instructions, and its tools bundled into one reusable object."
+---
+
+Everything you would otherwise pass to [`generateText`](/docs/reference/generate-text)
+on every call, held in one value you configure once and call many times. The
+properties mirror that function's parameters exactly, so anything you can do
+there you can do here.
+
+Reach for it when the same setup runs more than once: a support agent, a code
+reviewer, a research step in a larger pipeline. For a single one-off call, the
+free functions are less ceremony.
+
+An agent can also become a tool for another agent via `asTool`, which is how
+you build a supervisor that delegates to specialists.
+
+```swift
+let researcher = Agent(
+  model: AnthropicModel("claude-sonnet-5"),
+  instructions: "You research questions and cite your sources.",
+  tools: [webSearch]
+)
+
+let result = try await researcher.generate(prompt: "Who first isolated neon?")
+```
+
+## Declaration
+
+```swift
+public struct Agent
+```
+
+Defined in `Sources/AI/Core/Agent.swift`.
+
+## Initializer
+
+```swift
+init(
+    model: any LanguageModel,
+    instructions: String? = nil,
+    tools: [any AIToolProtocol] = [],
+    toolChoice: ToolChoice = .auto,
+    activeTools: [String]? = nil,
+    toolOrder: [String]? = nil,
+    toolsContext: [String: JSONValue] = [:],
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    topP: Double? = nil,
+    topK: Int? = nil,
+    presencePenalty: Double? = nil,
+    frequencyPenalty: Double? = nil,
+    seed: Int? = nil,
+    reasoning: ReasoningEffort = .providerDefault,
+    stopWhen: [StopCondition]? = nil,
+    maxSteps: Int = 8,
+    prepareCall: PrepareCall? = nil,
+    prepareStep: PrepareStep? = nil,
+    onStepFinish: OnStepFinish? = nil,
+    maxRetries: Int = 2,
+    providerOptions: JSONValue? = nil,
+    toolApproval: ToolApprovalPolicy? = nil,
+    toolApprovalSecret: String? = nil,
+    timeout: GenerationTimeout? = nil,
+    runtimeContext: JSONValue? = nil,
+    telemetry: TelemetrySettings? = nil,
+    compaction: Compaction? = nil
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var model` | `any LanguageModel` | — |
+| `var instructions` | `String?` | — |
+| `var tools` | `[any AIToolProtocol]` | — |
+| `var toolChoice` | `ToolChoice` | — |
+| `var activeTools` | `[String]?` | — |
+| `var toolOrder` | `[String]?` | — |
+| `var toolsContext` | `[String: JSONValue]` | — |
+| `var maxOutputTokens` | `Int` | — |
+| `var temperature` | `Double?` | — |
+| `var topP` | `Double?` | — |
+| `var topK` | `Int?` | — |
+| `var presencePenalty` | `Double?` | — |
+| `var frequencyPenalty` | `Double?` | — |
+| `var seed` | `Int?` | — |
+| `var reasoning` | `ReasoningEffort` | — |
+| `var stopWhen` | `[StopCondition]?` | — |
+| `var maxSteps` | `Int` | — |
+| `var prepareCall` | `PrepareCall?` | — |
+| `var prepareStep` | `PrepareStep?` | — |
+| `var onStepFinish` | `OnStepFinish?` | — |
+| `var maxRetries` | `Int` | — |
+| `var providerOptions` | `JSONValue?` | — |
+| `var toolApproval` | `ToolApprovalPolicy?` | — |
+| `var toolApprovalSecret` | `String?` | — |
+| `var timeout` | `GenerationTimeout?` | — |
+| `var runtimeContext` | `JSONValue?` | — |
+| `var telemetry` | `TelemetrySettings?` | — |
+| `var compaction` | `Compaction?` | — |
+
+## Methods
+
+```swift
+func generate(
+    prompt: String
+) async throws -> GenerateTextResult
+```
+
+```swift
+func generate(
+    messages: [Message]
+) async throws -> GenerateTextResult
+```
+
+```swift
+func stream(
+    prompt: String
+) -> StreamTextResult
+```
+
+```swift
+func stream(
+    messages: [Message]
+) -> StreamTextResult
+```
+
+```swift
+func asTool(
+    name: String,
+    description: String,
+    promptDescription: String = "The task for the agent to perform."
+) -> Tool
+```
+
+## See also
+
+- [Agents guide](/docs/agents)
+- [generateText](/docs/reference/generate-text)
+- [Tool](/docs/reference/tool)

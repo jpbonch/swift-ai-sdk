@@ -63,8 +63,14 @@ public func streamText(
     onError: (@Sendable (Error) async -> Void)? = nil,
     onChunk: (@Sendable (TextStreamPart) -> Void)? = nil,
     onAbort: (@Sendable () async -> Void)? = nil,
-    repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async -> ToolCall?)? = nil,
-    maxRetries: Int = 2
+    repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async throws -> ToolCall?)? = nil,
+    maxRetries: Int = 2,
+    toolApproval: ToolApprovalPolicy? = nil,
+    toolApprovalSecret: String? = nil,
+    timeout: GenerationTimeout? = nil,
+    runtimeContext: JSONValue? = nil,
+    telemetry: TelemetrySettings? = nil,
+    compaction: Compaction? = nil
 ) -> StreamTextResult {
     let parameters = GenerationParameters(
         model: model,
@@ -90,7 +96,13 @@ public func streamText(
         prepareStep: prepareStep,
         onStepFinish: onStepFinish,
         repairToolCall: repairToolCall,
-        maxRetries: maxRetries
+        maxRetries: maxRetries,
+        toolApproval: toolApproval,
+        toolApprovalSecret: toolApprovalSecret,
+        timeout: timeout,
+        runtimeContext: runtimeContext,
+        telemetry: telemetry,
+        compaction: compaction
     )
 
     let stream = AsyncThrowingStream<TextStreamPart, Error> { continuation in
@@ -101,7 +113,12 @@ public func streamText(
                     attributes: [
                         "ai.model.provider": .string(model.provider),
                         "ai.model.id": .string(model.modelID)
-                    ],
+                    ].merging(
+                        telemetry?.attributes(
+                            runtimeContext: runtimeContext, toolsContext: toolsContext
+                        ) ?? [:]
+                    ) { _, new in new },
+                    enabled: telemetry?.isEnabled ?? true,
                     endAttributes: { (outcome: GenerationOutcome) in
                         [
                             "ai.usage.inputTokens": .number(Double(outcome.totalUsage.inputTokens)),
@@ -110,9 +127,11 @@ public func streamText(
                         ]
                     }
                 ) {
-                    try await runGenerationLoop(parameters) { part in
-                        onChunk?(part)
-                        continuation.yield(part)
+                    try await withTimeout(timeout?.total, scope: .total) {
+                        try await runGenerationLoop(parameters) { part in
+                            onChunk?(part)
+                            continuation.yield(part)
+                        }
                     }
                 }
                 await onFinish?(GenerateTextResult(outcome: outcome))
@@ -153,8 +172,14 @@ struct GenerationParameters: Sendable {
     var prepareCall: PrepareCall? = nil
     var prepareStep: PrepareStep?
     var onStepFinish: OnStepFinish?
-    var repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async -> ToolCall?)? = nil
+    var repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async throws -> ToolCall?)? = nil
     var maxRetries: Int
+    var toolApproval: ToolApprovalPolicy? = nil
+    var toolApprovalSecret: String? = nil
+    var timeout: GenerationTimeout? = nil
+    var runtimeContext: JSONValue? = nil
+    var telemetry: TelemetrySettings? = nil
+    var compaction: Compaction? = nil
 }
 
 func applyToolOrder(
@@ -212,6 +237,7 @@ func runGenerationLoop(
             if let providerOptions = overrides.providerOptions {
                 parameters.providerOptions = providerOptions
             }
+            if let toolApproval = overrides.toolApproval { parameters.toolApproval = toolApproval }
         }
     }
 
@@ -220,58 +246,52 @@ func runGenerationLoop(
     var totalUsage = Usage()
     var finalReason: FinishReason = .stop
     var stepIndex = 0
+    var runtimeContext = parameters.runtimeContext
+    var compactedContext: CompactedContext?
 
-    let resumed = await resolvePendingApprovals(
-        in: &history, tools: parameters.tools, toolsContext: parameters.toolsContext
+    var resumedResults = try await resolvePendingApprovals(
+        in: &history,
+        tools: parameters.tools,
+        toolsContext: parameters.toolsContext,
+        policy: parameters.toolApproval,
+        secret: parameters.toolApprovalSecret,
+        timeout: parameters.timeout
     )
-    for result in resumed { emit(.toolResult(result)) }
+    for result in resumedResults { emit(.toolResult(result)) }
 
     while true {
-        var stepModel = parameters.model
-        var stepMessages = history
-        var stepTools = parameters.tools
-        if let prepare = parameters.prepareStep {
-            let context = PrepareStepContext(
-                stepNumber: stepIndex, steps: steps, messages: history, model: stepModel
-            )
-            if let overrides = try await prepare(context) {
-                if let model = overrides.model { stepModel = model }
-                if let messages = overrides.messages { stepMessages = messages }
-                if let tools = overrides.tools { stepTools = tools }
-            }
+        if let compaction = parameters.compaction,
+           let outcome = try await ContextCompactor.compact(
+               history,
+               settings: compaction,
+               model: parameters.model,
+               tools: parameters.tools,
+               existing: compactedContext
+           ) {
+            history = outcome.messages
+            compactedContext = outcome.event.context
         }
+
+        let plan = try await StepRequest.assemble(
+            parameters: parameters,
+            history: &history,
+            steps: steps,
+            stepIndex: stepIndex,
+            runtimeContext: &runtimeContext
+        )
+        let stepModel = plan.model
+        let stepTools = plan.tools
+        let stepMessages = plan.request.messages
 
         emit(.startStep(index: stepIndex))
 
-        let visibleTools: [any AIToolProtocol]
-        if let activeTools = parameters.activeTools {
-            visibleTools = stepTools.filter { activeTools.contains($0.name) }
-        } else {
-            visibleTools = stepTools
-        }
-        let requestTools = applyToolOrder(visibleTools, order: parameters.toolOrder)
-
-        let request = LanguageModelRequest(
-            messages: stepMessages,
-            tools: requestTools,
-            toolChoice: parameters.toolChoice,
-            maxOutputTokens: parameters.maxOutputTokens,
-            temperature: parameters.temperature,
-            topP: parameters.topP,
-            topK: parameters.topK,
-            presencePenalty: parameters.presencePenalty,
-            frequencyPenalty: parameters.frequencyPenalty,
-            seed: parameters.seed,
-            reasoning: parameters.reasoning,
-            stopSequences: parameters.stopSequences,
-            responseFormat: parameters.responseFormat,
-            providerOptions: parameters.providerOptions
-        )
+        let request = plan.request
 
         let resolvedModel = stepModel
-        let stream = try await Retry.withRetries(parameters.maxRetries) {
+        let rawStream = try await Retry.withRetries(parameters.maxRetries) {
             try await resolvedModel.stream(request)
         }
+        let stream = StreamTimeout.guarded(rawStream, timeout: parameters.timeout)
 
         var text = ""
         var reasoning = ""
@@ -295,7 +315,11 @@ func runGenerationLoop(
                 emit(.toolInputStart(id: id, name: name))
             case .toolArgumentsDelta(let id, let partialJSON):
                 emit(.toolInputDelta(id: id, partialJSON: partialJSON))
-            case .toolCall(let call):
+            case .toolCall(let raw):
+                var call = raw
+                if let tool = stepTools.first(where: { $0.name == call.name }), tool.isDynamic {
+                    call.isDynamic = true
+                }
                 if call.providerExecuted {
                     providerCalls.append(call)
                 } else {
@@ -328,18 +352,65 @@ func runGenerationLoop(
 
         var results: [ToolResult] = []
         var approvalRequests: [ToolApprovalRequest] = []
+        var approvalDecisions: [String: ToolApprovalDecision] = [:]
         var hasClientSideCalls = false
         if !calls.isEmpty {
             let toolIndex = Dictionary(
                 stepTools.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a }
             )
             var executable: [ToolCall] = []
+            var denials: [ToolResult] = []
             for original in calls {
                 var call = original
-                if toolIndex[call.name] == nil, let repair = parameters.repairToolCall,
-                   let repaired = await repair(call, stepTools) {
-                    call = repaired
+                var repairFailure: Error?
+
+                func repairing(_ reason: Error) async -> Bool {
+                    guard let repair = parameters.repairToolCall else { return false }
+                    do {
+                        guard let repaired = try await repair(call, stepTools) else { return false }
+                        call = repaired
+                        return true
+                    } catch {
+                        repairFailure = AIError.toolCallRepairFailed(
+                            tool: call.name, reason: "\(error) (repairing: \(reason))"
+                        )
+                        return false
+                    }
                 }
+
+                let unknownTool = AIError.invalidToolInput(
+                    tool: call.name, reason: "no tool named '\(call.name)' is available"
+                )
+                if toolIndex[call.name] == nil {
+                    _ = await repairing(unknownTool)
+                }
+
+                // Arguments arrive as whatever the model emitted. Giving repair
+                // a shot before reporting mirrors how the SDK treats a schema
+                // mismatch: recoverable first, an error on the call second.
+                if repairFailure == nil, let tool = toolIndex[call.name],
+                   let mismatch = validationError(call.arguments, against: tool) {
+                    _ = await repairing(mismatch)
+                    if repairFailure == nil {
+                        if let repaired = toolIndex[call.name],
+                           let remaining = validationError(call.arguments, against: repaired) {
+                            repairFailure = AIError.invalidToolInput(
+                                tool: call.name, reason: "\(remaining)"
+                            )
+                        } else if toolIndex[call.name] == nil {
+                            repairFailure = unknownTool
+                        }
+                    }
+                }
+
+                if let failure = repairFailure {
+                    denials.append(ToolResult(
+                        toolCallID: call.id, name: call.name,
+                        output: .string("Error: \(failure)"), isError: true
+                    ))
+                    continue
+                }
+
                 guard let tool = toolIndex[call.name] else {
                     executable.append(call)
                     continue
@@ -348,20 +419,60 @@ func runGenerationLoop(
                     hasClientSideCalls = true
                     continue
                 }
-                if await tool.needsApproval(call.arguments) {
+
+                var decision = ToolApprovalDecision.notApplicable
+                var fromPolicy = false
+                if let policy = parameters.toolApproval {
+                    decision = await policy.decide(ToolApprovalContext(
+                        toolCall: call,
+                        tool: tool,
+                        messages: stepMessages,
+                        stepNumber: stepIndex,
+                        steps: steps
+                    ))
+                    if case .notApplicable = decision {} else { fromPolicy = true }
+                }
+                if case .notApplicable = decision, await tool.needsApproval(call.arguments) {
+                    decision = .userApproval()
+                }
+                if case .notApplicable = decision {} else {
+                    approvalDecisions[call.id] = decision
+                }
+
+                switch decision {
+                case .notApplicable, .approved:
+                    executable.append(call)
+                case .denied(let reason):
+                    denials.append(ToolResult(
+                        toolCallID: call.id,
+                        name: call.name,
+                        output: .string(reason ?? "Tool execution denied."),
+                        denied: true
+                    ))
+                case .userApproval(let reason):
+                    let approvalID = "approval-\(call.id)"
                     let request = ToolApprovalRequest(
-                        approvalID: "approval-\(call.id)", call: call
+                        approvalID: approvalID,
+                        call: call,
+                        reason: reason,
+                        isAutomatic: fromPolicy,
+                        signature: parameters.toolApprovalSecret.flatMap {
+                            ToolApprovalSignature.sign(
+                                secret: $0, approvalID: approvalID,
+                                toolName: call.name, toolCallID: call.id, input: call.arguments
+                            )
+                        }
                     )
                     approvalRequests.append(request)
                     emit(.toolApprovalRequest(request))
-                } else {
-                    executable.append(call)
                 }
             }
-            results = await executeToolCalls(
+            results = denials + (await executeToolCalls(
                 executable, using: toolIndex,
-                messages: stepMessages, toolsContext: parameters.toolsContext
-            )
+                messages: stepMessages, toolsContext: parameters.toolsContext,
+                timeout: parameters.timeout
+            ))
+            try Task.checkCancellation()
             for result in results { emit(.toolResult(result)) }
             if !results.isEmpty {
                 history.append(Message(role: .tool, content: results.map { .toolResult($0) }))
@@ -372,14 +483,17 @@ func runGenerationLoop(
             text: text,
             reasoningText: reasoning,
             toolCalls: providerCalls + calls,
-            toolResults: providerResults + results,
+            toolResults: resumedResults + providerResults + results,
             sources: sources,
             approvalRequests: approvalRequests,
+            approvalDecisions: approvalDecisions,
+            runtimeContext: runtimeContext,
             providerMetadata: stepMetadata,
             finishReason: stepFinish,
             usage: stepUsage
         )
         steps.append(step)
+        resumedResults = []
         emit(.finishStep(step))
         await parameters.onStepFinish?(step)
 
@@ -407,8 +521,11 @@ func runGenerationLoop(
 func resolvePendingApprovals(
     in history: inout [Message],
     tools: [any AIToolProtocol],
-    toolsContext: [String: JSONValue] = [:]
-) async -> [ToolResult] {
+    toolsContext: [String: JSONValue] = [:],
+    policy: ToolApprovalPolicy? = nil,
+    secret: String? = nil,
+    timeout: GenerationTimeout? = nil
+) async throws -> [ToolResult] {
     guard let assistantIndex = history.lastIndex(where: { $0.role == .assistant }) else {
         return []
     }
@@ -439,16 +556,78 @@ func resolvePendingApprovals(
 
     let toolIndex = Dictionary(tools.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
     var results: [ToolResult] = []
-    let approved = decided.filter { responses[$0.id]?.approved == true }
-    for call in decided where responses[call.id]?.approved == false {
-        results.append(ToolResult(
-            toolCallID: call.id, name: call.name,
-            output: .string(responses[call.id]?.reason ?? "Tool execution denied."),
-            denied: true
-        ))
+    var approved: [ToolCall] = []
+    for call in decided {
+        guard let response = responses[call.id] else { continue }
+        if let secret, !secret.isEmpty {
+            // Denying every call one by one would look like a signing bug in
+            // the client rather than a missing platform capability.
+            guard ToolApprovalSignature.isSupported else {
+                throw AIError.unsupportedFunctionality(
+                    "toolApprovalSecret needs CryptoKit to sign and verify approvals, "
+                    + "which this platform does not provide. Drop the secret to use "
+                    + "unsigned approvals, or run where CryptoKit is available."
+                )
+            }
+            let valid = ToolApprovalSignature.verify(
+                response.signature,
+                secret: secret,
+                approvalID: response.approvalID,
+                toolName: call.name,
+                toolCallID: call.id,
+                input: call.arguments
+            )
+            guard valid else {
+                throw AIError.invalidToolApproval(
+                    "the response for '\(call.name)' (\(response.approvalID)) carries no valid "
+                    + "signature, so it did not come from this server"
+                )
+            }
+        }
+        guard response.approved else {
+            results.append(ToolResult(
+                toolCallID: call.id, name: call.name,
+                output: .string(response.reason ?? "Tool execution denied."),
+                denied: true
+            ))
+            continue
+        }
+
+        // Everything above this point came out of client-supplied history, so
+        // the arguments and the policy both have to be checked again. An
+        // approval recorded in an earlier turn is not permission to run
+        // whatever the client has since edited the call into.
+        if let tool = toolIndex[call.name] {
+            do {
+                try Schema.raw(tool.parameters).validate(call.arguments)
+            } catch {
+                throw AIError.invalidToolInput(tool: call.name, reason: "\(error)")
+            }
+        }
+
+        var decision = ToolApprovalDecision.notApplicable
+        if let policy {
+            decision = await policy.decide(ToolApprovalContext(
+                toolCall: call,
+                tool: toolIndex[call.name],
+                messages: history,
+                stepNumber: 0,
+                steps: []
+            ))
+        }
+        if case .denied(let reason) = decision {
+            results.append(ToolResult(
+                toolCallID: call.id, name: call.name,
+                output: .string(reason ?? response.reason ?? "Tool execution denied."),
+                denied: true
+            ))
+            continue
+        }
+        approved.append(call)
     }
     results.append(contentsOf: await executeToolCalls(
-        approved, using: toolIndex, messages: history, toolsContext: toolsContext
+        approved, using: toolIndex, messages: history,
+        toolsContext: toolsContext, timeout: timeout
     ))
 
     history = history.map { message in
@@ -463,11 +642,24 @@ func resolvePendingApprovals(
     return results
 }
 
+/// Provider-defined tools carry a declaration rather than a schema the caller
+/// owns, so only tools this SDK will actually execute are checked.
+func validationError(_ arguments: JSONValue, against tool: any AIToolProtocol) -> Error? {
+    guard tool.hasExecutor, case .object = tool.parameters else { return nil }
+    do {
+        try Schema.raw(tool.parameters).validate(arguments)
+        return nil
+    } catch {
+        return error
+    }
+}
+
 func executeToolCalls(
     _ calls: [ToolCall],
     using index: [String: any AIToolProtocol],
     messages: [Message] = [],
-    toolsContext: [String: JSONValue] = [:]
+    toolsContext: [String: JSONValue] = [:],
+    timeout: GenerationTimeout? = nil
 ) async -> [ToolResult] {
     await withTaskGroup(of: (Int, ToolResult).self) { group in
         for (order, call) in calls.enumerated() {
@@ -480,15 +672,26 @@ func executeToolCalls(
                     ))
                 }
                 do {
+                    let context = toolsContext[call.name]
+                    try tool.validateContext(context)
                     let options = ToolExecutionOptions(
                         toolCallID: call.id,
                         messages: messages,
-                        context: toolsContext[call.name]
+                        context: context
                     )
-                    let output = try await tool.execute(call.arguments, options: options)
+                    let output = try await withTimeout(
+                        timeout?.limit(forTool: call.name), scope: .tool, tool: call.name
+                    ) {
+                        try await tool.execute(call.arguments, options: options)
+                    }
                     return (order, ToolResult(
                         toolCallID: call.id, name: call.name, output: output,
                         content: tool.toModelOutput(output)
+                    ))
+                } catch is CancellationError {
+                    return (order, ToolResult(
+                        toolCallID: call.id, name: call.name,
+                        output: .string("Error: tool execution was cancelled"), isError: true
                     ))
                 } catch {
                     return (order, ToolResult(

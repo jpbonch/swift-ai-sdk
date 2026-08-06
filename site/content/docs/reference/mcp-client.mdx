@@ -1,0 +1,76 @@
+---
+title: "MCPClient"
+description: "A connection to an MCP server, and the tools it exposes."
+---
+
+Connects to a Model Context Protocol server over stdio, streamable HTTP, or
+the legacy SSE transport, and turns the tools it advertises into tools your
+model can call.
+
+The tools it returns are ordinary [`Tool`](/docs/reference/tool) values, so
+they mix freely with ones you wrote yourself. Servers that require OAuth are
+handled by attaching a session; the client refreshes and retries on a 401
+rather than making you catch it.
+
+```swift
+let client = try await MCPClient(
+  transport: .streamableHTTP(url: URL(string: "https://mcp.example.com")!)
+)
+
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: prompt,
+  tools: try await client.tools()
+)
+```
+
+## Declaration
+
+```swift
+public actor MCPClient
+```
+
+Defined in `Sources/AI/MCP/MCPClient.swift`.
+
+## Initializer
+
+```swift
+init(
+    transport: any MCPTransport
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `let transport` | `any MCPTransport` | — |
+
+## Methods
+
+```swift
+func close() async
+```
+
+```swift
+func connect(
+    clientName: String = "swift-ai-sdk",
+    clientVersion: String = "0.3.0"
+) async throws
+```
+
+```swift
+func tools() async throws -> [any AIToolProtocol]
+```
+
+```swift
+func callTool(
+    name: String,
+    arguments: JSONValue
+) async throws -> JSONValue
+```
+
+## See also
+
+- [MCP](/docs/mcp)
+- [Authorization required](/docs/troubleshooting/mcp-authorization-required)

@@ -1,0 +1,77 @@
+---
+title: "JSONValue"
+description: "A JSON value: object, array, string, number, boolean, or null."
+---
+
+The SDK's currency for anything whose shape isn't known at compile time:
+tool arguments, tool results, provider options, runtime context.
+
+It is an enum rather than `Any`, so it stays `Sendable` and its cases are
+exhaustive. Accessors like `stringValue` unwrap the common cases without a
+switch, and it is `ExpressibleBy` the usual literals, so writing one by hand
+reads close to writing JSON.
+
+```swift
+let options: JSONValue = [
+  "thinking": ["type": "enabled", "budget_tokens": 2048]
+]
+
+let city = args["city"]?.stringValue ?? "London"
+```
+
+## Declaration
+
+```swift
+public enum JSONValue
+```
+
+Defined in `Sources/AI/Util/JSONValue.swift`.
+
+## Cases
+
+```swift
+case null
+case bool(Bool)
+case number(Double)
+case string(String)
+case array([JSONValue])
+case object([String: JSONValue])
+```
+
+## Initializer
+
+```swift
+init(
+    from decoder: Decoder
+) throws
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var stringValue` | `String? { if case .string(let s)` | `self { return s } else { return nil } }` |
+| `var doubleValue` | `Double? { if case .number(let n)` | `self { return n } else { return nil } }` |
+| `var intValue` | `Int? { if case .number(let n)` | `self { return Int(n) } else { return nil } }` |
+| `var boolValue` | `Bool? { if case .bool(let b)` | `self { return b } else { return nil } }` |
+| `var arrayValue` | `[JSONValue]? { if case .array(let a)` | `self { return a } else { return nil } }` |
+| `var objectValue` | `[String: JSONValue]? { if case .object(let o)` | `self { return o } else { return nil } }` |
+
+## Methods
+
+```swift
+func encode(
+    to encoder: Encoder
+) throws
+```
+
+```swift
+func decode<T: Decodable>(
+    _ type: T.Type
+) throws -> T
+```
+
+## See also
+
+- [Structured output](/docs/structured-output)
+- [Runtime context](/docs/runtime-context)

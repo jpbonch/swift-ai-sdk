@@ -1,0 +1,36 @@
+---
+title: "lastAssistantMessageIsCompleteWithToolCalls"
+description: "Check whether the last assistant turn has all its tool results."
+---
+
+Returns true when the final assistant message's tool calls all have matching
+results, meaning the turn is ready to continue. Used to decide whether to
+resume a loop after a client round trip.
+
+```swift
+if lastAssistantMessageIsCompleteWithToolCalls(messages) {
+  try await resume(messages)
+}
+```
+
+## Signature
+
+```swift
+func lastAssistantMessageIsCompleteWithToolCalls(
+    _ messages: [UIMessage]
+) -> Bool
+```
+
+Defined in `Sources/AI/Transport/TextStreamChatTransport.swift`.
+
+## Parameters
+
+<Parameters name="lastAssistantMessageIsCompleteWithToolCalls" />
+
+## Returns
+
+A `Bool`.
+
+## See also
+
+- [Chat UI](/docs/chat-ui)

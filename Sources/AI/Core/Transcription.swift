@@ -30,7 +30,7 @@ public struct TranscriptionSegment: Sendable, Hashable {
     }
 }
 
-public struct TranscriptionModelResponse: Sendable {
+public struct TranscriptionModelResponse: Sendable, Hashable {
     public var text: String
     public var segments: [TranscriptionSegment]
     public var language: String?
@@ -56,6 +56,25 @@ public struct TranscriptionResult: Sendable {
     public var durationInSeconds: Double?
 }
 
+public func detectAudioMediaType(_ audio: Data) -> String? {
+    guard audio.count >= 12 else { return nil }
+    let bytes = [UInt8](audio.prefix(12))
+
+    func matches(_ ascii: String, at offset: Int) -> Bool {
+        let expected = Array(ascii.utf8)
+        guard bytes.count >= offset + expected.count else { return false }
+        return Array(bytes[offset..<(offset + expected.count)]) == expected
+    }
+
+    if matches("ftyp", at: 4) { return "audio/mp4" }
+    if matches("RIFF", at: 0), matches("WAVE", at: 8) { return "audio/wav" }
+    if matches("OggS", at: 0) { return "audio/ogg" }
+    if matches("fLaC", at: 0) { return "audio/flac" }
+    if matches("ID3", at: 0) { return "audio/mpeg" }
+    if bytes[0] == 0xFF, bytes[1] & 0xE0 == 0xE0 { return "audio/mpeg" }
+    return nil
+}
+
 public func transcribe(
     model: any TranscriptionModel,
     audio: Data,
@@ -63,6 +82,17 @@ public func transcribe(
     providerOptions: JSONValue? = nil,
     maxRetries: Int = 2
 ) async throws -> TranscriptionResult {
+    var mediaType = mediaType
+    let isGeneric = mediaType.isEmpty
+        || mediaType == "application/octet-stream"
+        || mediaType == "audio/*"
+    // Only fill in a type the caller did not supply. An explicit `video/mp4` or
+    // `video/quicktime` is a deliberate choice, and every ISO-BMFF file carries
+    // the same `ftyp` marker, so sniffing cannot tell them apart.
+    if isGeneric, let sniffed = detectAudioMediaType(audio) {
+        mediaType = sniffed
+    }
+
     let request = TranscriptionModelRequest(
         audio: audio,
         mediaType: mediaType,

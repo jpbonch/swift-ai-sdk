@@ -1,0 +1,56 @@
+---
+title: "generateObjectArray"
+description: "Generate a typed array, validating each element against a schema."
+---
+
+Like [`generateObject`](/docs/reference/generate-object), but the schema
+describes one element and the result is an array of them.
+
+Use it for list extraction where the element shape is known and the count is
+not: pulling every line item off an invoice, every attendee out of an email.
+
+```swift
+let result = try await generateObjectArray(
+  model: OpenAIModel("gpt-5.1"),
+  of: Attendee.self,
+  elementSchema: Schema.object([
+    "name": .string(), "email": .string()
+  ]).jsonSchema,
+  prompt: email
+)
+```
+
+## Signature
+
+```swift
+func generateObjectArray<T: Decodable & Sendable>(
+    model: any LanguageModel,
+    of type: T.Type = T.self,
+    elementSchema: JSONValue,
+    schemaName: String = "elements",
+    schemaDescription: String? = nil,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    providerOptions: JSONValue? = nil,
+    maxRetries: Int = 2,
+    repairText: (@Sendable (String, any Error) async -> String?)? = nil
+) async throws -> GenerateObjectResult<[T]>
+```
+
+Defined in `Sources/AI/Core/GenerateObject.swift`.
+
+## Parameters
+
+<Parameters name="generateObjectArray" />
+
+## Returns
+
+`GenerateObjectResult<[T]>`, with the array in `object`.
+
+## See also
+
+- [Structured output](/docs/structured-output)
+- [generateObject](/docs/reference/generate-object)

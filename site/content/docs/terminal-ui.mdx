@@ -1,0 +1,192 @@
+---
+title: Terminal UI
+description: Run an Agent or a ChatTransport in an interactive terminal with streamed markdown, tool cards, reasoning sections, and approval prompts.
+icon: Terminal
+---
+
+The `AITUI` target runs a local [`Agent`](/docs/agents) or a remote
+[`ChatTransport`](/docs/chat-ui) in an interactive terminal. It handles prompt
+input, streamed responses, markdown rendering, tool cards, reasoning sections,
+scrolling, and tool approvals. Useful for local development, demos, and
+internal tools where a terminal is enough.
+
+```swift
+import AI
+import AITUI
+
+let agent = Agent(
+  model: OpenAIModel("gpt-5"),
+  instructions: "You are a helpful terminal assistant. Answer in markdown.",
+  tools: [weather]
+)
+
+try await runAgentTUI(title: "Weather Agent", agent: agent)
+```
+
+`runAgentTUI` runs until the user exits with Esc or Ctrl+C. Add the library to
+your target alongside `AI`:
+
+```swift
+.product(name: "AITUI", package: "swift-ai-sdk")
+```
+
+## Try it
+
+The repository ships a runnable demo:
+
+```bash
+swift run tui-demo
+```
+
+Every backend is a real model. With no flag the demo picks the first that is
+usable (Anthropic, then OpenAI, then a running Ollama), or tells you how to
+get one if none are:
+
+```bash
+swift run tui-demo --ollama      # local, no API key
+swift run tui-demo --openai      # OPENAI_API_KEY
+swift run tui-demo --anthropic   # ANTHROPIC_API_KEY
+```
+
+Ollama is the zero-key path: `ollama serve` and `ollama pull qwen3` are enough.
+The demo checks the server is reachable and the model is actually pulled before
+starting, so a missing model is a clear message rather than a failed first turn.
+`swift run tui-demo --list` prints what Ollama has.
+
+`--model <id>` (or `AI_MODEL`) picks the model, `OLLAMA_HOST` points at a
+non-default server, and `TUI_DEMO_APPROVAL=1` makes the weather tool require
+approval. The weather tool calls a live API, so tool cards show real data.
+`swift run tui-demo --help` lists everything.
+
+To run entirely on-device with Apple Intelligence:
+
+```bash
+swift run tui-demo --on-device
+```
+
+`--pcc` uses [Private Cloud Compute](/docs/on-device) instead. Both flags also
+read the `AI_ON_DEVICE` and `AI_PCC` environment variables, and both report
+availability and exit cleanly when the platform or model is unavailable rather
+than trapping. Foundation Models does not report token usage, so the
+statistics and context readouts stay hidden on that path.
+
+## Connecting to a remote agent
+
+Pass a transport instead of an agent to talk to an AI SDK–compatible UI
+message endpoint. The transport owns the URL, authentication, and request
+body; the terminal UI keeps its chat id and message history behind the
+transport contract.
+
+```swift
+try await runAgentTUI(
+  title: "Remote Agent",
+  transport: HTTPChatTransport(api: URL(string: "https://example.com/api/chat")!)
+)
+```
+
+Anything conforming to `ChatTransport` works, including `LocalChatTransport`
+and `Agent` itself.
+
+## Display options
+
+```swift
+try await runAgentTUI(
+  title: "Assistant",
+  agent: agent,
+  tools: .autoCollapsed,
+  reasoning: .collapsed,
+  responseStatistics: .outputTokenCount,
+  contextSize: 200_000
+)
+```
+
+- `tools` / `reasoning` take a `TerminalPartDisplayMode`: `.full` shows the
+  section header and full content, `.collapsed` shows only the header,
+  `.autoCollapsed` (the default) keeps the newest section expanded until
+  another section appears after it, and `.hidden` omits it.
+- `responseStatistics` is `.outputTokensPerSecond` (default) or
+  `.outputTokenCount`.
+- `contextSize` turns on a token-usage readout as a percentage of the model's
+  context window.
+- `theme` takes a `TerminalTheme` if you want different colors for headings,
+  code, links, and quotes.
+
+A tool card awaiting approval always renders expanded, whatever the mode, so
+the input being approved is visible.
+
+## Tool approvals
+
+Tools declared with `needsApproval` pause the loop, and the terminal UI
+prompts before the call runs:
+
+```swift
+let weather = Tool(
+  name: "weather",
+  description: "Get the weather in a location.",
+  parameters: ["type": "object", "properties": ["location": ["type": "string"]]],
+  needsApproval: true
+) { arguments in ["temperatureF": 72] }
+```
+
+Press `y` to approve or `n` to deny. Approving resumes the same loop through
+`convertToModelMessages`, exactly like `ChatSession.addToolApprovalResponse`
+in the SwiftUI layer; denying returns a denial result to the model.
+
+## Statistics and usage
+
+For a local `Agent`, usage is read from the stream's finish part and attached
+as message metadata, so tokens/sec, token counts, and context percentage are
+exact. For a remote transport, the readout appears when the server sends
+`usage` in message metadata (`messageMetadata:` on `UIMessageStream.chunks`);
+without it the status bar just omits the statistic.
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| Enter | Submit the prompt |
+| `y` / `n` | Approve or deny a tool call |
+| ↑ / ↓ | Scroll the transcript |
+| PageUp / PageDown | Scroll by a full page |
+| ← / → , Home / End | Move the input cursor |
+| Ctrl+W / Ctrl+U | Delete the previous word / clear the input |
+| Ctrl+L | Repaint |
+| Esc | Stop an in-flight response, or exit when idle |
+| Ctrl+C | Exit |
+
+## Requirements and behavior
+
+- POSIX terminals only (macOS and Linux). `runAgentTUI` throws
+  `AgentTUIError.notATerminal` when stdin or stdout is not a TTY, so piping
+  fails loudly instead of hanging.
+- It runs on the alternate screen and restores the terminal — raw mode,
+  cursor, and screen — on exit, including on error.
+- Color is dropped when `NO_COLOR` is set or `TERM` is `dumb`.
+- Wide characters (CJK, emoji) are measured at two columns so wrapping and
+  truncation stay aligned.
+
+## Rendering pieces on their own
+
+The pieces the UI is built from are public and pure, so you can render
+transcripts elsewhere (a log file, a test snapshot, a different loop):
+
+```swift
+let lines = TranscriptRenderer.lines(
+  for: messages,
+  width: 80,
+  options: TerminalTranscriptOptions(tools: .full, reasoning: .hidden)
+)
+for line in lines { print(line.render(styled: true)) }
+```
+
+`MarkdownTerminalRenderer.render(_:width:theme:)` returns styled, wrapped
+lines for any markdown string, and `AgentTUIRenderer.frame(model:size:styled:)`
+builds a full screen from an `AgentTUIModel`.
+
+## Compatibility
+
+Use `agent:` when the agent runs from free-form terminal input. It must not
+require per-call options or structured output, because the terminal UI cannot
+infer those from a prompt. Use `transport:` for remote agents that need custom
+request handling, and call `agent.generate()` / `agent.stream()` directly when
+you need fixed prompts, structured output, or custom stream processing.

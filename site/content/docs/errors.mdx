@@ -1,0 +1,46 @@
+---
+title: Errors and retries
+description: The typed AIError cases, and the automatic retry behavior behind every request.
+icon: TriangleAlert
+---
+
+Failures surface as typed `AIError` cases:
+
+```swift
+do {
+  let result = try await generateText(model: model, prompt: prompt)
+} catch let AIError.http(status, body) {
+  // 4xx/5xx with the provider's error body
+} catch AIError.noObjectGenerated {
+  // structured output did not parse or validate
+} catch {
+  // transport errors, cancellation
+}
+```
+
+Other cases include `.decoding`, `.invalidRequest`, `.unknownTool`, and
+`.transport`. The tool layer adds `.invalidToolInput`, `.invalidToolContext`,
+`.missingToolResults`, `.toolCallRepairFailed`, and `.invalidToolApproval`;
+`.timedOut(scope:limit:tool:)` reports which
+[timeout](/docs/timeouts-and-approvals) fired,
+`.unsupportedFunctionality` marks a capability the provider or platform does
+not offer, and `.authorizationRequired(url:)` carries the sign-in URL when an
+[MCP](/docs/mcp) server needs OAuth. Streaming surfaces errors by throwing from
+the stream you iterate.
+
+## Retries
+
+Every request path retries transient failures with exponential backoff.
+`maxRetries` (default 2) counts retries after the first attempt; set 0 to
+disable:
+
+```swift
+let result = try await generateText(
+  model: model,
+  prompt: prompt,
+  maxRetries: 4
+)
+```
+
+Establishing a stream is retryable; a stream that already delivered parts
+is not, so you never see duplicated tokens.

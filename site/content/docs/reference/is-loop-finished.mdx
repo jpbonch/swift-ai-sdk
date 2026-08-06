@@ -1,0 +1,28 @@
+---
+title: "isLoopFinished"
+description: "Stop when the model stops asking for tools."
+---
+
+Fires on the first step where the model returns no tool calls, which is the
+loop's natural end. Rarely needed explicitly, since the loop already stops
+there; useful when composing it with other conditions.
+
+```swift
+stopWhen: [isLoopFinished()]
+```
+
+## Signature
+
+```swift
+func isLoopFinished() -> StopCondition
+```
+
+Defined in `Sources/AI/Core/StepControl.swift`.
+
+## Returns
+
+A `StopCondition`.
+
+## See also
+
+- [Agents](/docs/agents)

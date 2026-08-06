@@ -1,0 +1,47 @@
+---
+title: "consumeStream"
+description: "Drain a stream to completion, discarding output."
+---
+
+Runs a stream to the end without collecting it. Use it when the work matters
+but the output does not, such as making sure `onFinish` fires and the run is
+persisted even if the client disconnected.
+
+```swift
+try await consumeStream(stream: result.fullStream)
+```
+
+## Signature
+
+```swift
+func consumeStream(
+    _ chunks: AsyncThrowingStream<UIMessageChunk, Error>,
+    onError: (@Sendable (Error) async -> Void)? = nil
+) async
+```
+
+Defined in `Sources/AI/Transport/TextStreamChatTransport.swift`.
+
+## Parameters
+
+<Parameters name="consumeStream" />
+
+## Overloads
+
+1 other form of this function exists:
+
+```swift
+func consumeStream(
+    _ parts: AsyncThrowingStream<TextStreamPart, Error>,
+    onError: (@Sendable (Error) async -> Void)? = nil
+) async
+```
+
+
+## Returns
+
+Nothing.
+
+## See also
+
+- [Chat UI](/docs/chat-ui)

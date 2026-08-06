@@ -1,0 +1,43 @@
+---
+title: "uploadFile"
+description: "Upload a file to a provider and get a reference back."
+---
+
+Uploads bytes through any `FileUploadAPI` (OpenAI Files, Anthropic Files) and
+returns a handle you can attach to a message. The resulting
+`providerReference` reaches OpenAI as `file_id` and Anthropic as a `file`
+source, and is ignored by providers it was not minted for.
+
+```swift
+let file = try await uploadFile(
+  api: OpenAIFiles(),
+  data: pdf,
+  filename: "report.pdf"
+)
+```
+
+## Signature
+
+```swift
+func uploadFile(
+    api: any FileUploadAPI,
+    data: Data,
+    filename: String,
+    mediaType: String = "application/octet-stream",
+    purpose: String = "user_data"
+) async throws -> UploadedFile
+```
+
+Defined in `Sources/AI/Providers/FileUploads.swift`.
+
+## Parameters
+
+<Parameters name="uploadFile" />
+
+## Returns
+
+An `UploadedFile`.
+
+## See also
+
+- [Files and skills](/docs/files-and-skills)

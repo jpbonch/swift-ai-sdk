@@ -1,0 +1,58 @@
+---
+title: "StreamTextResult"
+description: "A live stream of one generation, plus the finished result once it lands."
+---
+
+What `streamText` hands back before the model has finished. Iterate it to
+consume parts as they arrive, whether those are text deltas, tool calls, tool
+results, or reasoning. Or await the finished result if you decide mid-flight
+that you want the whole thing after all.
+
+The stream is single-pass. If you need both the live parts and the final
+result, consume the stream and read the result afterwards rather than trying to
+iterate twice.
+
+```swift
+let stream = streamText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: "Write a haiku about deadlines."
+)
+
+for try await delta in stream.textStream {
+  print(delta, terminator: "")
+}
+```
+
+## Declaration
+
+```swift
+public struct StreamTextResult
+```
+
+Defined in `Sources/AI/Core/StreamText.swift`.
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `let fullStream` | `AsyncThrowingStream<TextStreamPart, Error>` | — |
+
+## Methods
+
+```swift
+func smoothedTextStream(
+    chunking: SmoothStreamChunking = .word,
+    delay: Duration? = .milliseconds(10)
+) -> AsyncThrowingStream<String, Error>
+```
+
+```swift
+func consumeStream(
+    onError: (@Sendable (Error) async -> Void)? = nil
+) async
+```
+
+## See also
+
+- [streamText](/docs/reference/stream-text)
+- [GenerateTextResult](/docs/reference/generate-text-result)

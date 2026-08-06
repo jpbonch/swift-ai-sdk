@@ -89,7 +89,13 @@ public final class ChatSession {
         for (partIndex, part) in message.parts.enumerated() {
             guard case .tool(var tool) = part, tool.approval?.id == approvalID else { continue }
             tool.state = .approvalResponded
-            tool.approval = ToolApproval(id: approvalID, approved: approved, reason: reason)
+            tool.approval = ToolApproval(
+                id: approvalID,
+                approved: approved,
+                reason: reason,
+                isAutomatic: tool.approval?.isAutomatic,
+                signature: tool.approval?.signature
+            )
             message.parts[partIndex] = .tool(tool)
         }
         messages[messageIndex] = message

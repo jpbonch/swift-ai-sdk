@@ -1,0 +1,37 @@
+---
+title: "readUIMessageStream"
+description: "Turn a UI message stream into message snapshots."
+---
+
+Consumes the UI-message wire protocol and yields a growing `UIMessage` after
+each chunk, so a view can render the latest snapshot without reducing chunks
+itself.
+
+```swift
+for try await message in readUIMessageStream(stream: chunks) {
+  render(message)
+}
+```
+
+## Signature
+
+```swift
+func readUIMessageStream(
+    _ chunks: AsyncThrowingStream<UIMessageChunk, Error>,
+    message: UIMessage? = nil
+) -> AsyncThrowingStream<UIMessage, Error>
+```
+
+Defined in `Sources/AI/Transport/UIMessageStreamBuilder.swift`.
+
+## Parameters
+
+<Parameters name="readUIMessageStream" />
+
+## Returns
+
+An `AsyncThrowingStream<UIMessage, Error>`.
+
+## See also
+
+- [Streaming protocol](/docs/streaming-protocol)

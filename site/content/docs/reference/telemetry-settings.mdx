@@ -1,0 +1,53 @@
+---
+title: "TelemetrySettings"
+description: "What the SDK records about a run, and where it sends it."
+---
+
+Turns on tracing for a call: spans for each step, tool execution, and model
+request, with token counts attached. Off by default, because recording prompts
+and completions is a decision about user data, not a default.
+
+Enable it per call or per agent. Recording of prompt and completion text is a
+separate switch from recording the spans themselves.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: prompt,
+  telemetry: TelemetrySettings(isEnabled: true, functionID: "summarise")
+)
+```
+
+## Declaration
+
+```swift
+public struct TelemetrySettings
+```
+
+Defined in `Sources/AI/Core/RuntimeContext.swift`.
+
+## Initializer
+
+```swift
+init(
+    isEnabled: Bool = true,
+    functionID: String? = nil,
+    metadata: [String: JSONValue] = [:],
+    includeRuntimeContext: [String]? = nil,
+    includeToolsContext: [String]? = nil
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var isEnabled` | `Bool` | — |
+| `var functionID` | `String?` | — |
+| `var metadata` | `[String: JSONValue]` | — |
+| `var includeRuntimeContext` | `[String]?` | — |
+| `var includeToolsContext` | `[String]?` | — |
+
+## See also
+
+- [Telemetry](/docs/telemetry)

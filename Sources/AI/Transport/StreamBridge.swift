@@ -49,6 +49,7 @@ private struct ChunkBridge {
     private var step = 0
     private var openTextID: String?
     private var openReasoningID: String?
+    private var dynamicToolCallIDs: Set<String> = []
 
     mutating func convert(_ part: TextStreamPart) -> [UIMessageChunk] {
         switch part {
@@ -81,25 +82,34 @@ private struct ChunkBridge {
             return [.toolInputDelta(toolCallID: id, inputTextDelta: partialJSON)]
 
         case .toolCall(let call):
+            if call.isDynamic { dynamicToolCallIDs.insert(call.id) }
             return [.toolInputAvailable(
-                toolCallID: call.id, toolName: call.name, input: call.arguments
+                toolCallID: call.id, toolName: call.name, input: call.arguments,
+                providerExecuted: call.providerExecuted ? true : nil,
+                dynamic: call.isDynamic ? true : nil
             )]
 
         case .toolResult(let result):
+            let dynamic = dynamicToolCallIDs.contains(result.toolCallID) ? true : nil
             if result.denied {
                 return [.toolOutputDenied(toolCallID: result.toolCallID)]
             }
             if result.isError {
                 return [.toolOutputError(
                     toolCallID: result.toolCallID,
-                    errorText: result.output.stringValue ?? "\(result.output)"
+                    errorText: result.output.stringValue ?? "\(result.output)",
+                    dynamic: dynamic
                 )]
             }
-            return [.toolOutputAvailable(toolCallID: result.toolCallID, output: result.output)]
+            return [.toolOutputAvailable(
+                toolCallID: result.toolCallID, output: result.output, dynamic: dynamic
+            )]
 
         case .toolApprovalRequest(let request):
             return [.toolApprovalRequest(
-                approvalID: request.approvalID, toolCallID: request.call.id
+                approvalID: request.approvalID, toolCallID: request.call.id,
+                reason: request.reason, isAutomatic: request.isAutomatic,
+                signature: request.signature
             )]
 
         case .source(let source):
@@ -196,7 +206,9 @@ public func convertToModelMessages(_ uiMessages: [UIMessage]) -> [Message] {
                     guard tool.state != .inputStreaming else { continue }
                     assistantParts.append(.toolCall(ToolCall(
                         id: tool.toolCallID, name: tool.toolName,
-                        arguments: tool.input ?? .object([:])
+                        arguments: tool.input ?? .object([:]),
+                        providerExecuted: tool.providerExecuted ?? false,
+                        isDynamic: tool.isDynamic
                     )))
                     switch tool.state {
                     case .outputAvailable:
@@ -222,7 +234,8 @@ public func convertToModelMessages(_ uiMessages: [UIMessage]) -> [Message] {
                                 approvalID: approval.id,
                                 toolCallID: tool.toolCallID,
                                 approved: approved,
-                                reason: approval.reason
+                                reason: approval.reason,
+                                signature: approval.signature
                             )))
                         }
                     default:

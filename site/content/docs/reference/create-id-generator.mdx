@@ -1,0 +1,38 @@
+---
+title: "createIdGenerator"
+description: "Build an id generator with a prefix and alphabet."
+---
+
+Returns a generator producing ids with the prefix, alphabet, size, and
+separator you choose. Useful when ids need to be recognizable per surface, like
+`msg_` and `call_`.
+
+```swift
+let nextID = createIdGenerator(prefix: "msg", size: 16)
+let id = nextID()
+```
+
+## Signature
+
+```swift
+func createIdGenerator(
+    prefix: String? = nil,
+    separator: String = "-",
+    alphabet: String = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    size: Int = 16
+) -> @Sendable () -> String
+```
+
+Defined in `Sources/AI/Core/RuntimeContext.swift`.
+
+## Parameters
+
+<Parameters name="createIdGenerator" />
+
+## Returns
+
+A `@Sendable () -> String`.
+
+## See also
+
+- [generateId](/docs/reference/generate-id)

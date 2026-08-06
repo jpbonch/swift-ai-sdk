@@ -1,0 +1,50 @@
+---
+title: "StopCondition"
+description: "When the tool loop should stop taking another step."
+---
+
+By default the loop runs until the model stops asking for tools or hits
+`maxSteps`. A stop condition lets you end it on your own terms: after a
+particular tool has been called, once a step count is reached, or on any
+predicate you write over the steps so far.
+
+Conditions compose. Pass several and the loop stops when any one is met.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: prompt,
+  tools: [search, finish],
+  stopWhen: [hasToolCall("finish"), stepCountIs(10)]
+)
+```
+
+## Declaration
+
+```swift
+public struct StopCondition
+```
+
+Defined in `Sources/AI/Core/StepControl.swift`.
+
+## Initializer
+
+```swift
+init(
+    _ predicate: @escaping @Sendable ([StepResult]) -> Bool
+)
+```
+
+## Methods
+
+```swift
+func isMet(
+    _ steps: [StepResult]
+) -> Bool
+```
+
+## See also
+
+- [Agents guide](/docs/agents)
+- [stepCountIs](/docs/reference/step-count-is)
+- [hasToolCall](/docs/reference/has-tool-call)

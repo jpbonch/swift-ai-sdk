@@ -43,10 +43,11 @@ public enum AITelemetry {
     static func span<T: Sendable>(
         _ name: String,
         attributes: [String: JSONValue] = [:],
+        enabled: Bool = true,
         endAttributes: @Sendable (T) -> [String: JSONValue] = { _ in [:] },
         operation: () async throws -> T
     ) async rethrows -> T {
-        guard collector != nil else { return try await operation() }
+        guard enabled, collector != nil else { return try await operation() }
         let started = Date()
         record(AITelemetryEvent(name: name, phase: .start, attributes: attributes))
         do {

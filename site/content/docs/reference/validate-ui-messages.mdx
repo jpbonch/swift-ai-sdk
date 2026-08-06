@@ -1,0 +1,36 @@
+---
+title: "validateUIMessages"
+description: "Validate incoming UI messages, throwing on bad input."
+---
+
+Checks that messages from a client are well formed before you hand them to a
+model. Throws on the first problem.
+
+For a non-throwing check, use
+[`safeValidateUIMessages`](/docs/reference/safe-validate-ui-messages).
+
+```swift
+let messages = try validateUIMessages(body.messages)
+```
+
+## Signature
+
+```swift
+func validateUIMessages(
+    _ messages: [UIMessage]
+) throws -> [UIMessage]
+```
+
+Defined in `Sources/AI/Transport/TextStreamChatTransport.swift`.
+
+## Parameters
+
+<Parameters name="validateUIMessages" />
+
+## Returns
+
+The validated `[UIMessage]`.
+
+## See also
+
+- [Chat UI](/docs/chat-ui)

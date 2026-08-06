@@ -1,0 +1,136 @@
+---
+title: Timeouts and approvals
+description: Bound every call with total, step, stall, and tool timeouts, and gate sensitive tools with an approval policy that can be cryptographically signed.
+icon: Timer
+---
+
+## Timeouts
+
+`generateText`, `streamText`, and `Agent` take a `timeout:`. Every field is
+optional; set only the ones you want.
+
+```swift
+let result = try await generateText(
+  model: model,
+  prompt: "Plan the migration.",
+  tools: [weather],
+  timeout: GenerationTimeout(
+    total: .seconds(60),        // whole call, all steps
+    step: .seconds(20),         // one model call
+    firstChunk: .seconds(5),    // until the first content of a step (streaming)
+    chunk: .seconds(10),        // between content chunks after output starts
+    tool: .seconds(15),         // any tool execution
+    tools: ["slowApi": .seconds(45)]   // per-tool override
+  )
+)
+```
+
+`GenerationTimeout.after(.seconds(30))` is shorthand for a total timeout.
+
+### What counts as content
+
+`firstChunk` and `chunk` are stall detectors, and only content-bearing output
+satisfies or resets them: text deltas, reasoning deltas, tool-input deltas,
+tool calls, tool results, and sources. Response metadata, stream starts, and
+empty deltas do not — so a provider sending keep-alive metadata will not hold
+a stalled stream open.
+
+### What a timeout does
+
+Total, step, and stall timeouts throw `AIError.timedOut(scope:limit:tool:)`,
+which surfaces through `streamText`'s `onError` and cancels the underlying
+request. A **tool** timeout is different: it aborts that one execution and
+returns a tool error, so the model can react or retry:
+
+```swift
+if case .timedOut(let scope, let limit, let tool) = error as? AIError {
+  print("timed out: \(scope) after \(limit) \(tool ?? "")")
+}
+```
+
+Cancellation is cooperative, as everywhere in Swift concurrency: a tool that
+never checks `Task.isCancelled` and never awaits a cancellable call will run
+to completion before its timeout surfaces. Anything that awaits I/O or
+`Task.sleep` stops promptly.
+
+## Tool approvals
+
+Approval policy lives on the call, not on the tool, so the same tool can be
+free in one context and gated in another.
+
+```swift
+let result = try await generateText(
+  model: model,
+  prompt: "Clean up the temp files.",
+  tools: [deleteFile, runQuery],
+  toolApproval: [
+    "deleteFile": .userApproval(),
+    "runQuery": .denied(reason: "Queries are disabled in this workspace")
+  ]
+)
+```
+
+Four decisions:
+
+| Decision | Effect |
+| --- | --- |
+| `.notApplicable` | Run the tool normally. The default, and the fallback to the tool's own `needsApproval` |
+| `.approved(reason:)` | Record an automatic approval and run the tool |
+| `.denied(reason:)` | Skip the tool and hand the model a denied result it can reason about |
+| `.userApproval(reason:)` | Emit an approval request and pause the loop |
+
+Decisions land on `step.approvalDecisions`, keyed by tool call id, and
+`.userApproval` also appears in `step.approvalRequests`.
+
+For policies that depend on the arguments or on what already happened, pass a
+closure instead of a map — it receives the whole call plus the message history
+and step number:
+
+```swift
+toolApproval: ToolApprovalPolicy { context in
+  guard context.toolCall.name == "transfer" else { return .notApplicable }
+  let amount = context.toolCall.arguments["amountUSD"]?.doubleValue ?? 0
+  if amount > 10_000 { return .denied(reason: "Above the automatic limit") }
+  return amount > 100 ? .userApproval() : .approved()
+}
+```
+
+`ToolApprovalPolicy.perTool([...])` keys closures by tool name, and
+`prepareCall` can return a `toolApproval` when the policy depends on the
+tenant or user rather than the call site.
+
+Answering an approval is unchanged: `ChatSession.addToolApprovalResponse`,
+the `y`/`n` keys in the [terminal UI](/docs/terminal-ui), or a
+`.toolApprovalResponse` part in the next turn.
+
+## Signing approvals
+
+Approvals travel through the client — a browser, an app, a terminal — and come
+back in the next request's message history. Without protection, a client that
+crafts a schema-valid approval bypasses the human step. Pass a secret and the
+loop HMAC-signs each request at issue and verifies it on replay:
+
+```swift
+let result = try await generateText(
+  model: model,
+  messages: messages,
+  tools: [deleteFile],
+  toolApproval: ["deleteFile": .userApproval()],
+  toolApprovalSecret: ProcessInfo.processInfo.environment["TOOL_APPROVAL_SECRET"]
+)
+```
+
+- The signature binds the approval id, tool name, tool call id, and the exact
+  input. Change any of them and verification fails.
+- Verification is **fail-closed**: once a secret is configured, an approval
+  with a missing or invalid signature is denied, and the model receives a
+  denied result instead of the tool running.
+- With no secret configured, approvals work exactly as before.
+- The payload is serialized as JSON with a versioned prefix, so a field
+  containing a delimiter cannot be re-arranged into a different but
+  identically-signed tuple.
+- The secret never reaches the client; only the signature does.
+  `ChatSession` and the terminal UI carry it back automatically.
+
+Generate one with `openssl rand -base64 32` and give every instance that might
+serve a turn the same value, since one instance signs and another may verify.

@@ -12,10 +12,10 @@ public struct DeepgramTranscriptionModel: TranscriptionModel {
     public let provider = "deepgram"
     public let modelID: String
 
-    private let apiKey: String
-    private let baseURL: URL
-    private let headers: [String: String]
-    private let urlSession: URLSession
+    let apiKey: String
+    let baseURL: URL
+    let headers: [String: String]
+    let urlSession: URLSession
 
     public init(
         _ modelID: String = "nova-3",
@@ -495,6 +495,14 @@ public struct GladiaTranscriptionModel: TranscriptionModel {
         guard let resultURLString = created["result_url"]?.stringValue,
               let resultURL = URL(string: resultURLString)
         else { throw AIError.decoding("Gladia returned no result_url") }
+
+        guard ResponseURL.carriesCredentials(resultURL, matching: baseURL) else {
+            throw AIError.invalidRequest(
+                "Gladia returned a result_url on \(resultURL.host ?? "an unknown host"), which is "
+                + "not part of \(baseURL.host ?? "the configured endpoint"). "
+                + "Refusing to send the API key there."
+            )
+        }
 
         let deadline = Date().addingTimeInterval(pollTimeout)
         while true {

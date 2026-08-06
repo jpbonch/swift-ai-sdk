@@ -1,0 +1,47 @@
+---
+title: "streamTextDeltas"
+description: "A minimal text-only stream, without the tool loop."
+---
+
+Streams raw text deltas straight from a model with no tool loop, no steps, and
+no result accumulation. It is the smallest possible streaming call.
+
+Use it when you want tokens and nothing else, or when you are building your own
+loop on top of the model protocol. Most applications want
+[`streamText`](/docs/reference/stream-text).
+
+```swift
+for try await delta in streamTextDeltas(
+  model: OllamaModel("qwen3"),
+  prompt: "Count to ten."
+) {
+  print(delta, terminator: "")
+}
+```
+
+## Signature
+
+```swift
+func streamTextDeltas(
+    model: any LanguageModel,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil
+) -> AsyncThrowingStream<String, Error>
+```
+
+Defined in `Sources/AI/Core/GenerateText.swift`.
+
+## Parameters
+
+<Parameters name="streamTextDeltas" />
+
+## Returns
+
+An `AsyncThrowingStream<String, Error>` of text deltas.
+
+## See also
+
+- [streamText](/docs/reference/stream-text)

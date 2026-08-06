@@ -1,0 +1,33 @@
+---
+title: "AIError.unknownTool"
+description: "The model called a tool that was not in the tools array."
+---
+
+## Symptom
+
+`AIError.unknownTool("some_name")` thrown mid-loop.
+
+## Why it happens
+
+The model asked for a tool the call does not know about. Two common routes:
+
+The tool array changed between turns while the history still refers to the old
+one. The model sees a prior turn where `search` existed, and asks for it again
+on a call where it was not passed.
+
+Or `activeTools` narrowed the set. A tool filtered out of `activeTools` is
+hidden from the model, but a model working from history may still ask.
+
+## Fix
+
+Keep the tool array stable for the life of a conversation. When you do need to
+vary it per step, do it in `prepareStep` so the change is visible to the loop
+rather than applied behind it.
+
+If the tool genuinely no longer exists, prune the history so the model stops
+seeing evidence of it.
+
+## See also
+
+- [Tools](/docs/tools)
+- [filterActiveTools](/docs/reference/filter-active-tools)

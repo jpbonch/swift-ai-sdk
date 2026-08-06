@@ -1,0 +1,31 @@
+---
+title: "AIError.decoding"
+description: "A response arrived but did not match the expected shape."
+---
+
+## Symptom
+
+`AIError.decoding(...)` on an otherwise successful request.
+
+## Why it happens
+
+The HTTP call succeeded and the body did not look like what the provider's API
+documents.
+
+Usually one of: the provider returned an error document with a 200, or the
+endpoint is "OpenAI-compatible" but diverges on a field the SDK reads. Local
+servers and gateways are the usual suspects.
+
+## Fix
+
+Log the raw body. If it is an error document, the real problem is in the
+message it carries.
+
+If it is a genuine shape difference, the OpenAI-compatible base accepts
+`headers:` and `queryParams:` overrides that often bridge the gap. For a
+persistent mismatch, wrap the model and normalize the response in middleware.
+
+## See also
+
+- [OpenAI-compatible providers](/docs/providers/openai-compatible)
+- [Middleware](/docs/middleware)

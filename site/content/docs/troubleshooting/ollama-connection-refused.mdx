@@ -1,0 +1,30 @@
+---
+title: "Cannot reach a local model server"
+description: "Ollama or another local server is not running, or is on a different port."
+---
+
+## Symptom
+
+`AIError.transport(...)` mentioning a refused connection to `localhost:11434`.
+
+## Why it happens
+
+`OllamaModel` defaults to `http://localhost:11434/v1`. The server is not
+running, is bound elsewhere, or the model was never pulled.
+
+## Fix
+
+Start the server and pull a model:
+
+```bash
+ollama serve
+ollama pull qwen3
+```
+
+For a non-default host, pass `baseURL:` explicitly. Note that a model Ollama has
+not pulled fails at request time, not at construction, so a typo in the model id
+looks like a server problem.
+
+## See also
+
+- [Ollama](/docs/providers/ollama)

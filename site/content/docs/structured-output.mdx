@@ -122,7 +122,7 @@ Two smaller strategies for smaller jobs:
 // Pick one of a fixed set. Great for classification.
 let sentiment = try await generateEnum(
   model: model,
-  cases: ["positive", "neutral", "negative"],
+  values: ["positive", "neutral", "negative"],
   prompt: "Classify: this library is delightful."
 )
 

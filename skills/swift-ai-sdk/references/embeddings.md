@@ -99,11 +99,14 @@ public struct CohereEmbeddingModel: EmbeddingModel { /* in CohereModel.swift */ 
 
 More conformers: `VoyageEmbeddingModel(_ modelID: String = "voyage-3.5", apiKey:baseURL:inputType:outputDimension:...)` (`VOYAGE_API_KEY`; `inputType: .query`/`.document` for asymmetric retrieval, `outputDimension:` for Matryoshka truncation) and `AlibabaEmbeddingModel(_ modelID: String = "text-embedding-v4", apiKey:baseURL:dimension:...)` (`ALIBABA_API_KEY`, native DashScope embeddings endpoint). Also `DeepInfraEmbeddingModel`, `BasetenEmbeddingModel`, `TogetherAIEmbeddingModel`, and any OpenAI-compatible endpoint via `provider.textEmbeddingModel(_:)`.
 
+`GoogleEmbeddingModel(_ modelID: String = "gemini-embedding-001", apiKey:taskType:title:outputDimensionality:...)` reads `GOOGLE_GENERATIVE_AI_API_KEY`. One text uses `models/{id}:embedContent`, several switch to `batchEmbedContents` automatically. `taskType` is the documented set: `.retrievalQuery`, `.retrievalDocument`, `.semanticSimilarity`, `.classification`, `.clustering`, `.questionAnswering`, `.factVerification`, `.codeRetrievalQuery`.
+
 ```swift
 let openai = OpenAIEmbeddingModel("text-embedding-3-small")
 let cohere = CohereEmbeddingModel("embed-v4.0")
 let voyage = VoyageEmbeddingModel("voyage-3.5", inputType: .document)
 let qwen   = AlibabaEmbeddingModel("text-embedding-v4", dimension: 1024)
+let gemini = GoogleEmbeddingModel(taskType: .retrievalDocument, outputDimensionality: 768)
 ```
 
 ## rerank

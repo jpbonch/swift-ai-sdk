@@ -106,3 +106,46 @@ Snapshot from July 2026; new ids work the day OpenAI ships them.
 | [Transcription](/docs/transcription) | `OpenAITranscriptionModel("whisper-1")` |
 | [Realtime voice](/docs/realtime) | `OpenAIRealtimeModel("gpt-realtime")` |
 | [Files](/docs/files-and-skills) | `OpenAIFiles().upload(...)` |
+| [Video](/docs/video-generation) | `OpenAIVideoModel("sora-2")` — create, poll, download, `remix` |
+
+## Multi-agent
+
+GPT-5.6 models can spawn and coordinate their own subagent tree inside a
+single Responses call:
+
+```swift
+let model = OpenAIModel(
+  "gpt-5.6-sol",
+  multiAgent: OpenAIModel.MultiAgent(maxConcurrentSubagents: 3)
+)
+
+let review = try await generateText(
+  model: model,
+  prompt: "Review this diff with three agents: correctness, security, and missing tests.",
+  tools: [readFile]
+)
+```
+
+Setting `multiAgent:` adds `multi_agent` to the request and the
+`responses_multi_agent=v1` beta header. The root agent (`/root`) spawns
+subagents (`/root/reviewer`, `/root/reviewer/tester`, …) and synthesizes the
+final answer; `maxConcurrentSubagents` caps active turns across the whole
+tree, and defaults to OpenAI's 3.
+
+The six hosted coordination actions — spawn, send message, follow-up task,
+wait, interrupt, and list — arrive as `multi_agent_call` items. **Your app
+must not execute them**, so they surface as provider metadata
+(`result.providerMetadata["openai"]["multiAgentCall"]`) rather than tool
+calls. Ordinary function calls from any agent in the tree still run through
+the normal tool loop.
+
+## Platform APIs
+
+- `OpenAIConversationsClient` — the Conversations API: create (from
+  `[Message]` or raw items), get, update metadata, list/add/delete items.
+- `OpenAIVectorStoresClient` — the store side of `file_search`: create with
+  expiry, attach and detach files, and `search(_:query:)` with filters and
+  query rewriting.
+- `OpenAIBatchClient`, `OpenAIContainersClient`, and
+  `OpenAIModerationsClient` (returns `flagged` plus the flagged category
+  names).

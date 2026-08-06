@@ -50,6 +50,17 @@ public struct BlackForestLabsImageModel: ImageModel {
               let pollURL = URL(string: pollURLString)
         else { throw AIError.decoding("Black Forest Labs returned no polling_url") }
 
+        // The global endpoint hands back a regional cluster URL and the docs
+        // require following it, so this cannot be an exact-host check — but the
+        // key still must not leave bfl.ai on the say-so of a response body.
+        guard ResponseURL.carriesCredentials(pollURL, matching: baseURL) else {
+            throw AIError.invalidRequest(
+                "Black Forest Labs returned a polling_url on \(pollURL.host ?? "an unknown host"), "
+                + "which is not part of \(baseURL.host ?? "the configured endpoint"). "
+                + "Refusing to send the API key there."
+            )
+        }
+
         let deadline = Date().addingTimeInterval(pollTimeout)
         while true {
             try await Task.sleep(nanoseconds: pollNanoseconds(pollInterval))

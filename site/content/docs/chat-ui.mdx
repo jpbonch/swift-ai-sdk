@@ -37,6 +37,23 @@ the session takes an `id:` so reconnects and resumption target the right
 chat. `HTTPChatTransport` accepts `headers:` (auth) and a `body:` object
 merged into every request alongside the messages.
 
+For anything that has to be computed per request — a refreshed token, a
+trimmed history, a different URL — pass `prepareSendMessagesRequest:` (or
+`prepareReconnectToStreamRequest:`), which runs right before each call and
+whose headers and body fields win over the static ones:
+
+```swift
+HTTPChatTransport(
+  api: api,
+  prepareSendMessagesRequest: { request in
+    PreparedChatRequest(
+      headers: ["authorization": "Bearer \(await auth.freshToken())"],
+      body: ["messages": .array(request.messages.suffix(10).map(\.wire))]
+    )
+  }
+)
+```
+
 The wire format is the same UI message stream your web chat already
 speaks, so an existing chat route serves the app without changes.
 

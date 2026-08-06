@@ -1,0 +1,33 @@
+---
+title: "encodePCM16"
+description: "Encode samples as 16-bit PCM."
+---
+
+Packs float samples into little-endian 16-bit PCM, the format realtime
+providers accept.
+
+```swift
+let data = encodePCM16(samples)
+```
+
+## Signature
+
+```swift
+func encodePCM16(
+    _ samples: [Float]
+) -> Data
+```
+
+Defined in `Sources/AI/Realtime/AudioResampling.swift`.
+
+## Parameters
+
+<Parameters name="encodePCM16" />
+
+## Returns
+
+`Data` of 16-bit little-endian PCM.
+
+## See also
+
+- [Realtime voice](/docs/realtime)

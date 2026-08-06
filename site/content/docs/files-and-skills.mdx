@@ -1,11 +1,41 @@
 ---
 title: Files and skills
 description: Upload provider-hosted files and reusable Anthropic skills.
-icon: BookOpen
+icon: Files
 ---
 
 Swift AI includes focused clients for provider resources that live outside a
 model request.
+
+## Referencing an upload in a message
+
+`uploadFile` works against any client conforming to `FileUploadAPI` and tags
+the result with the provider, so the upload can be dropped straight into a
+message:
+
+```swift
+let uploaded = try await uploadFile(
+  api: OpenAIFiles(),
+  data: pdf,
+  filename: "report.pdf",
+  mediaType: "application/pdf"
+)
+
+let answer = try await generateText(
+  model: OpenAIModel("gpt-5"),
+  messages: [Message(role: .user, content: [
+    .text("Summarize this."),
+    .file(uploaded.file(mediaType: "application/pdf"))
+  ])]
+)
+```
+
+`uploaded.file(mediaType:)` and `uploaded.image()` build content parts whose
+`providerReference` maps a provider name to its file id (`["openai":
+"file_123"]`). A provider that recognizes its own key sends the id — OpenAI as
+`file_id` on an `input_file` / `input_image`, Anthropic as a `file` source —
+and a provider that does not simply ignores the reference, so a reference
+minted for one provider is never leaked to another.
 
 ## OpenAI files
 

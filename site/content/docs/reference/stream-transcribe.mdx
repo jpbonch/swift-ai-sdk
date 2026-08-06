@@ -1,0 +1,51 @@
+---
+title: "streamTranscribe"
+description: "Transcribe live audio as it arrives."
+---
+
+Streams audio to a transcription model over a WebSocket and yields text as it
+is recognized.
+
+Interim guesses arrive as `.partialTranscript`, which **replaces** the current
+partial, while settled text arrives as `.transcriptDelta`, which **appends**.
+Keeping those separate is what stops revisions from double-counting.
+
+```swift
+for try await part in streamTranscribe(
+  model: DeepgramTranscriptionModel("nova-3"),
+  audio: micStream
+) {
+  switch part {
+  case .partialTranscript(let text): showInterim(text)
+  case .transcriptDelta(let text): append(text)
+  default: break
+  }
+}
+```
+
+## Signature
+
+```swift
+func streamTranscribe(
+    model: any TranscriptionModel,
+    audio: AsyncThrowingStream<Data, Error>,
+    mediaType: String,
+    providerOptions: JSONValue? = nil
+) throws -> StreamTranscriptionResult
+```
+
+Defined in `Sources/AI/Core/StreamTranscription.swift`.
+
+## Parameters
+
+<Parameters name="streamTranscribe" />
+
+## Returns
+
+A `StreamTranscriptionResult` whose stream yields `TranscriptionStreamPart`
+values, plus an awaitable final `result`.
+
+## See also
+
+- [Transcription](/docs/transcription)
+- [transcribe](/docs/reference/transcribe)

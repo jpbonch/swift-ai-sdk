@@ -9,14 +9,39 @@ public protocol AIToolProtocol: Sendable {
     var name: String { get }
     var description: String { get }
     var parameters: JSONValue { get }
+    var inputExamples: [JSONValue] { get }
+    var contextSchema: Schema? { get }
+    var isDynamic: Bool { get }
+    var isIdempotent: Bool { get }
+    var loading: ToolLoading { get }
     var hasExecutor: Bool { get }
+    func description(context: JSONValue?) -> String
     func needsApproval(_ arguments: JSONValue) async -> Bool
     func execute(_ arguments: JSONValue) async throws -> JSONValue
     func execute(_ arguments: JSONValue, options: ToolExecutionOptions) async throws -> JSONValue
 }
 ```
 
-`hasExecutor` defaults to `true`, `needsApproval` defaults to `false`, and the contextual `execute(_:options:)` defaults to forwarding to `execute(_:)`.
+Defaults: `hasExecutor` true, `needsApproval` false, `inputExamples` empty, `contextSchema` nil, `isDynamic` false, `isIdempotent` false, `loading` `.none`, `description(context:)` returns the static `description`, and contextual `execute(_:options:)` forwards to `execute(_:)`.
+
+### Optional tool facets
+
+```swift
+Tool(name:…, description:…, parameters:…, inputExamples: [["city": "SF"]]) { … }
+    .withContextSchema(Schema.object(["apiKey": .string()]))   // validated before execute
+    .describing { context in "Weather in \(context?["unit"]?.stringValue ?? "celsius")" }
+    .loading(ToolLoading(strict: true, deferLoading: true,
+                         allowedCallers: ["code_execution_20260120"],
+                         cacheControl: …, eagerInputStreaming: true))
+
+Tool.dynamic(name:description:) { input, _ in … }   // runtime schema; sets isDynamic
+```
+
+- `inputExamples` → native `input_examples` on Anthropic; elsewhere use the `.addToolInputExamples()` middleware, which folds them into the description.
+- `contextSchema` validates that tool's `toolsContext` entry; a mismatch fails the call with `AIError.invalidToolContext` and the tool never runs.
+- `ToolLoading` maps to Anthropic's universal tool properties (`strict`, `defer_loading`, `allowed_callers`, `cache_control`, `eager_input_streaming`); shorthands `.ephemeralCache()` and `.codeExecutionOnly()`.
+- `isDynamic` flows to `ToolCall.isDynamic` and the `dynamic` field on UI tool chunks; MCP tools are dynamic automatically.
+- `isIdempotent` (set with `.idempotent()`) lets [compaction](context-management.md) replace that tool's *result* with a pointer, keeping the call itself. Off by default, so side-effecting tools keep their full output. Only set it when re-running the tool is cheap and safe.
 
 ## Closure-based Tool
 
@@ -129,6 +154,8 @@ let result = try await generateText(
 
 ## Human-in-the-loop approvals
 
+Per-tool `needsApproval` is the "always ask" form. For call-level policy (auto-approve, auto-deny with a reason, argument- or history-dependent decisions) and HMAC-signed approvals, see [timeouts-and-approvals.md](timeouts-and-approvals.md) — `toolApproval:` and `toolApprovalSecret:` on `generateText` / `streamText` / `Agent`.
+
 A tool that needs approval pauses the loop with a `ToolApprovalRequest` instead of executing. The app answers, and execution resumes on the next turn; a denial surfaces to the model as a denied `ToolResult` (`denied == true`).
 
 ```swift
@@ -217,7 +244,17 @@ static func webSearchPreview(searchContextSize: String? = nil, userLocation: JSO
 static func fileSearch(vectorStoreIds: [String], maxNumResults: Int? = nil, filters: JSONValue? = nil, name: String = "file_search") -> ProviderDefinedTool
 static func codeInterpreter(fileIds: [String]? = nil, name: String = "code_interpreter") -> ProviderDefinedTool
 static func computerUse(displayWidth: Int, displayHeight: Int, environment: String = "browser", name: String = "computer_use_preview") -> ProviderDefinedTool
+static func imageGeneration(background:inputFidelity:inputImageMask:model:moderation:outputCompression:outputFormat:partialImages:quality:size:name:) -> ProviderDefinedTool
+static func shell(environment: JSONValue? = nil, name: String = "shell") -> ProviderDefinedTool
+static func localShell(name: String = "local_shell") -> ProviderDefinedTool
+static func applyPatch(name: String = "apply_patch") -> ProviderDefinedTool
+static func toolSearch(execution: String? = nil, description: String? = nil, parameters: JSONValue? = nil, name: String = "tool_search") -> ProviderDefinedTool
+static func programmaticToolCalling(name: String = "programmatic_tool_calling") -> ProviderDefinedTool
+static func customTool(name: String, description: String? = nil, format: JSONValue? = nil) -> ProviderDefinedTool
+static func mcpServer(serverLabel:serverURL:connectorID:authorization:allowedTools:headers:requireApproval:serverDescription:name:) -> ProviderDefinedTool
 ```
+
+**Multi-agent** (GPT-5.6, beta): `OpenAIModel("gpt-5.6-sol", multiAgent: .init(maxConcurrentSubagents: 3))` adds `multi_agent` plus the `responses_multi_agent=v1` header. Hosted `multi_agent_call` items (spawn/send/followup/wait/interrupt/list) arrive as `providerMetadata["openai"]["multiAgentCall"]` — **never execute them**; ordinary function calls from any agent still use the normal loop.
 
 ### GroqModel.Tools (`provider: "groq"`)
 

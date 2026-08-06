@@ -1,0 +1,37 @@
+---
+title: "AIError.timedOut"
+description: "A timeout fired. The scope tells you which one and what to change."
+---
+
+## Symptom
+
+`AIError.timedOut(scope:limit:tool:)`.
+
+## Why it happens
+
+Read `scope` before changing anything, because each one means something
+different:
+
+`.total` is the whole call including every step. `.step` is one model call.
+`.firstChunk` means a stream produced nothing at all within the limit.
+`.chunk` means a stream started and then stalled. A populated `tool` means one
+specific tool ran long.
+
+Stall timers only count content-bearing output, so provider keep-alive metadata
+cannot hold a dead stream open.
+
+## Fix
+
+Raise the scope that actually fired rather than the total. An agent loop that
+trips `.total` usually needs more steps allowed, not a longer clock.
+
+Tool timeouts do not throw by default. They come back as a tool error the model
+can read and react to, which is normally what you want:
+
+```swift
+timeout: GenerationTimeout(total: .seconds(600), tool: .seconds(30))
+```
+
+## See also
+
+- [Timeouts and approvals](/docs/timeouts-and-approvals)

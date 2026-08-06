@@ -3,6 +3,8 @@ import { Card, Cards } from 'fumadocs-ui/components/card';
 import { Step, Steps } from 'fumadocs-ui/components/steps';
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 import type { MDXComponents } from 'mdx/types';
+import { Parameters } from '@/components/signature';
+import { ReleaseHero } from '@/components/release-hero';
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
@@ -13,6 +15,8 @@ export function getMDXComponents(components?: MDXComponents) {
     Steps,
     Tab,
     Tabs,
+    Parameters,
+    ReleaseHero,
     ...components,
   } satisfies MDXComponents;
 }

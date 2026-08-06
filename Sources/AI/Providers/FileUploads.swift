@@ -7,6 +7,60 @@ public struct UploadedFile: Sendable, Hashable {
     public var id: String
     public var filename: String?
     public var sizeBytes: Int?
+    public var provider: String = ""
+
+    public var providerReference: [String: String] {
+        provider.isEmpty ? [:] : [provider: id]
+    }
+
+    public func file(mediaType: String) -> FileContent {
+        FileContent(
+            providerReference: providerReference, mediaType: mediaType, filename: filename
+        )
+    }
+
+    public func image(mediaType: String? = nil) -> ImageContent {
+        ImageContent(providerReference: providerReference, mediaType: mediaType)
+    }
+}
+
+public protocol FileUploadAPI: Sendable {
+    var provider: String { get }
+    func upload(
+        data: Data, filename: String, purpose: String, mediaType: String
+    ) async throws -> UploadedFile
+}
+
+public func uploadFile(
+    api: any FileUploadAPI,
+    data: Data,
+    filename: String,
+    mediaType: String = "application/octet-stream",
+    purpose: String = "user_data"
+) async throws -> UploadedFile {
+    var uploaded = try await api.upload(
+        data: data, filename: filename, purpose: purpose, mediaType: mediaType
+    )
+    uploaded.provider = api.provider
+    return uploaded
+}
+
+extension OpenAIFiles: FileUploadAPI {
+    public var provider: String { "openai" }
+}
+
+extension AnthropicFiles: FileUploadAPI {
+    public var provider: String { "anthropic" }
+
+    public func upload(
+        data: Data, filename: String, purpose: String, mediaType: String
+    ) async throws -> UploadedFile {
+        var uploaded = try await upload(
+            data: data, filename: filename, mediaType: mediaType
+        )
+        uploaded.provider = "anthropic"
+        return uploaded
+    }
 }
 
 public struct OpenAIFiles: Sendable {

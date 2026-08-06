@@ -28,12 +28,17 @@ public struct Agent: Sendable {
         prepareStep: PrepareStep? = nil,
         onStepFinish: OnStepFinish? = nil,
         maxRetries: Int = 2,
-        providerOptions: JSONValue? = nil
+        providerOptions: JSONValue? = nil,
+        toolApproval: ToolApprovalPolicy? = nil,
+        toolApprovalSecret: String? = nil,
+        timeout: GenerationTimeout? = nil,
+        runtimeContext: JSONValue? = nil,
+        telemetry: TelemetrySettings? = nil
     )
 }
 ```
 
-`instructions` maps to the system prompt. All stored properties are public and `var`, so an agent can be copied and tweaked.
+`instructions` maps to the system prompt. All stored properties are public and `var`, so an agent can be copied and tweaked. The last five are also direct parameters on `generateText` / `streamText`: see [timeouts-and-approvals.md](timeouts-and-approvals.md) for `timeout` / `toolApproval` / `toolApprovalSecret` and [runtime-context.md](runtime-context.md) for `runtimeContext` / `telemetry`.
 
 ## Running
 
@@ -133,18 +138,23 @@ public struct PrepareStepContext: Sendable {
     public var steps: [StepResult]
     public var messages: [Message]
     public var model: any LanguageModel
+    public var runtimeContext: JSONValue?
+    public var toolsContext: [String: JSONValue]
 }
 
 public struct PrepareStepResult: Sendable {
     public init(
         model: (any LanguageModel)? = nil,
         messages: [Message]? = nil,
-        tools: [any AIToolProtocol]? = nil
+        tools: [any AIToolProtocol]? = nil,
+        runtimeContext: JSONValue? = nil
     )
 }
 
 public typealias PrepareStep = @Sendable (PrepareStepContext) async throws -> PrepareStepResult?
 ```
+
+Returning `runtimeContext` replaces the shared run state for later steps; it is also recorded on each `StepResult.runtimeContext`. `PrepareCallResult` likewise accepts `toolApproval:` when the approval policy depends on the tenant or user.
 
 ## toolOrder
 

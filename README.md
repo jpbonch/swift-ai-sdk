@@ -88,6 +88,16 @@ Button("Send") { chat.send(input) }   // chat.status: .submitted -> .streaming -
 
 `ChatSession` is the `useChat` analog. It drives any `ChatTransport`, reduces protocol chunks into typed `UIMessage`s (tool parts upsert by `toolCallId` through `input-streaming -> input-available -> output-available`), and updates token by token. Building a server instead? `UIMessageStream.chunks(from:)` and `UIMessageStream.encodeSSE(_:)` turn any `streamText` run into a spec-compliant response for web `useChat` clients.
 
+### Chat in the terminal
+
+```swift
+import AITUI
+
+try await runAgentTUI(title: "Weather Agent", agent: agent)   // or transport:
+```
+
+The `AITUI` library is the `@ai-sdk/tui` analog: an interactive terminal chat over any `Agent` or `ChatTransport`, with streamed markdown, tool cards, reasoning sections, scrollback, tokens/sec and context readouts, and `y`/`n` prompts for tools that need approval. macOS and Linux; see [Terminal UI](site/content/docs/terminal-ui.mdx).
+
 ### Providers
 
 Every provider is its own pack, mirroring the `@ai-sdk/*` package family. Native wire implementations:
@@ -96,6 +106,7 @@ Every provider is its own pack, mirroring the `@ai-sdk/*` package family. Native
 AnthropicModel("claude-opus-4-8")          // ANTHROPIC_API_KEY
 OpenAIModel("gpt-5.6-sol")                 // OPENAI_API_KEY
 XaiModel("grok-4.5")                       // XAI_API_KEY, native Responses API
+MetaModel("muse-spark-1.2")                // MODEL_API_KEY, native Responses API
 GoogleModel("gemini-3.6-flash")            // GOOGLE_GENERATIVE_AI_API_KEY, native Gemini API
 GroqModel("llama-3.3-70b-versatile")       // GROQ_API_KEY
 DeepSeekModel("deepseek-reasoner")         // DEEPSEEK_API_KEY, streams reasoning
@@ -149,7 +160,8 @@ tool loop; `generateObject` / `streamObject` with all four output strategies
 `Agent` (the `ToolLoopAgent` analog, which is also a `ChatTransport`);
 middleware via `wrapLanguageModel` (including a response `cache`,
 `extractReasoning`, and `defaultSettings`); `ProviderRegistry` for
-"provider:model" lookup; `MCPClient` for Model Context Protocol tools;
+"provider:model" lookup; `MCPClient` for Model Context Protocol tools over
+HTTP, stdio, or SSE, with OAuth sign-in for hosted servers;
 file uploads; realtime voice sessions (OpenAI, Google, xAI) with
 client-side tool calling; telemetry hooks with the
 AI SDK's span names; the `Schema` DSL (the zod analog: combinators that
@@ -171,8 +183,10 @@ its native shape, reasoning streams surface as `reasoningText`, and citations
 surface as `result.sources`.
 
 Providers: native packs for OpenAI (Responses API default), Anthropic, xAI
-(Responses default, plus video), Google (Gemini wire), Google Vertex, Amazon
-Bedrock (Converse over AWS event stream), Cohere (chat, embeddings, rerank),
+(Responses default, plus video), Meta (Muse Spark on the Responses API),
+Google (Gemini wire), Google Vertex, Amazon
+Bedrock (Converse over AWS event stream, plus `bedrock-mantle` Responses /
+chat completions / Anthropic Messages), Cohere (chat, embeddings, rerank),
 Groq, DeepSeek, Mistral, and Perplexity; `AzureOpenAIProvider`; compat
 model packs for Together, Fireworks, Cerebras, OpenRouter, DeepInfra, Baseten,
 Vercel, Gateway, Ollama, LM Studio, and Sarvam (Indic reasoning chat); and
@@ -182,10 +196,19 @@ ElevenLabs, Deepgram, AssemblyAI, Rev.ai, Gladia, and Sarvam (Saaras)
 transcription; OpenAI, fal, Luma, and Replicate images; Luma and xAI video.
 
 Provider-executed (server-side) tools have typed builders under `<Model>.Tools`
-— xAI live/X search and code execution, OpenAI web/file search and code
-interpreter, Google grounding, and Anthropic web search, code execution,
-computer use, and more (with `anthropic-beta` headers handled for you). They
-surface as provider-executed `.toolCall` / `.toolResult` parts.
+— xAI live/X search and code execution, Meta web search and tool search,
+OpenAI web/file search, code
+interpreter, image generation, shell, apply-patch and hosted MCP, Google
+grounding and Vertex RAG, and Anthropic web search, code execution, computer
+use, memory, advisor, and tool search (with `anthropic-beta` headers handled
+for you). They surface as provider-executed `.toolCall` / `.toolResult` parts.
+
+Long-running loops get guardrails: `timeout:` bounds a call in total, per
+step, per tool, and on stalls (`firstChunk` / `chunk`, counting only
+content-bearing output); `toolApproval:` puts approval policy on the call —
+approve, deny with a reason, or ask a human — and `toolApprovalSecret:`
+HMAC-signs approvals so a client cannot forge one. `pruneMessages` trims old
+tool traffic and reasoning before the window fills up.
 
 Route layer: `UIMessage`, the chunk codec, the reducer,
 `HTTPChatTransport` / `LocalChatTransport`, the server bridge, and
@@ -272,7 +295,7 @@ The transport layer is pinned against the AI SDK v5+ UI message stream protocol,
 ## Install
 
 ```swift
-.package(url: "https://github.com/zaidmukaddam/swift-ai-sdk.git", from: "0.2.0")
+.package(url: "https://github.com/zaidmukaddam/swift-ai-sdk.git", from: "0.3.0")
 ```
 
 Then add `"AI"` to your target's dependencies. Requires Swift 6 / Xcode 16+. The Foundation Models provider activates automatically when built with the iOS 26 / macOS 26 SDK.

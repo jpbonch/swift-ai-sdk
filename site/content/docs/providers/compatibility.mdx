@@ -18,6 +18,7 @@ implements.
 | Google / Vertex | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Bedrock | ✓ | ✓ | ✓ | ✓ | — | ✓ |
 | xAI | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Meta | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Groq | ✓* | ✓* | ✓ | ✓* | — | ✓ |
 | DeepSeek | ✓* | ✓* | ✓ | ✓* | — | ✓ |
 | Mistral | ✓* | ✓* | ✓ | ✓* | — | — |
@@ -75,6 +76,13 @@ The same table drives Bedrock's `anthropic.*` model ids.
 - `grok-4.20` date-stamped `-reasoning` / `-non-reasoning` variants have
   their behavior baked in, so the `reasoning` parameter is not sent.
 
+### Meta
+
+- Muse Spark cannot turn reasoning off. `.none` is dropped rather than
+  sent, since the API answers it with a 400.
+- `temperature` and `topP` are forwarded even though the model reasons —
+  Meta accepts both, unlike OpenAI's reasoning models.
+
 ### Mistral
 
 - `reasoning` maps to `reasoning_effort` only on `mistral-small-latest`,
@@ -82,9 +90,15 @@ The same table drives Bedrock's `anthropic.*` model ids.
 
 ### Bedrock
 
-Three families by model-id prefix: `anthropic.*` gets Claude thinking
-config, `openai.*` gets `reasoning_effort`, and everything else gets the
-generic `reasoningConfig` (where `xhigh` becomes `max`).
+On `bedrock-runtime` (`BedrockModel`), three families by model-id prefix:
+`anthropic.*` gets Claude thinking config, `openai.*` gets
+`reasoning_effort`, and everything else gets the generic `reasoningConfig`
+(where `xhigh` becomes `max`).
+
+On `bedrock-mantle` (`BedrockMantleProvider`), each surface follows its own
+wire: `messages(_:)` maps `reasoning` to Claude thinking, `chat(_:)` maps it
+to `reasoning_effort`, and the Responses surface takes effort through
+`providerOptions["reasoning"]["effort"]`.
 
 ## Beyond text
 
@@ -115,7 +129,7 @@ and environment variables:
 | `OpenRouterModel` | `openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
 | `DeepInfraModel` | `api.deepinfra.com/v1/openai` | `DEEPINFRA_API_KEY` |
 | `BasetenModel` | `inference.baseten.co/v1` | `BASETEN_API_KEY` |
-| `VercelModel` | `api.v0.dev/v1` | `V0_API_KEY` |
+| `VercelModel` | `api.v0.dev/v1` | `VERCEL_API_KEY` |
 | `AIGatewayModel` | `ai-gateway.vercel.sh/v1` | `AI_GATEWAY_API_KEY` |
 | `OllamaModel` | `localhost:11434/v1` | no key |
 | `LMStudioModel` | `localhost:1234/v1` | no key |

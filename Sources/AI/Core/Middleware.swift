@@ -221,6 +221,129 @@ public extension LanguageModelMiddleware {
             return request
         })
     }
+
+    static func addToolInputExamples(
+        prefix: String = "Input Examples:"
+    ) -> LanguageModelMiddleware {
+        LanguageModelMiddleware(transformRequest: { request in
+            var request = request
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            request.tools = request.tools.map { tool in
+                guard !tool.inputExamples.isEmpty else { return tool }
+                let rendered = tool.inputExamples.compactMap { example -> String? in
+                    guard let data = try? encoder.encode(example) else { return nil }
+                    return String(data: data, encoding: .utf8)
+                }
+                guard !rendered.isEmpty else { return tool }
+                let suffix = "\n\n\(prefix)\n" + rendered.map { "- \($0)" }.joined(separator: "\n")
+                return tool.resolvingDescription(tool.description + suffix)
+            }
+            return request
+        })
+    }
+
+    static func extractJson() -> LanguageModelMiddleware {
+        LanguageModelMiddleware(wrapStream: { inner in
+            AsyncThrowingStream { continuation in
+                let task = Task {
+                    var stripper = JSONFenceStripper()
+                    do {
+                        for try await part in inner {
+                            switch part {
+                            case .textDelta(let delta):
+                                let text = stripper.consume(delta)
+                                if !text.isEmpty { continuation.yield(.textDelta(text)) }
+                            case .finish:
+                                let text = stripper.finish()
+                                if !text.isEmpty { continuation.yield(.textDelta(text)) }
+                                continuation.yield(part)
+                            default:
+                                continuation.yield(part)
+                            }
+                        }
+                        let text = stripper.finish()
+                        if !text.isEmpty { continuation.yield(.textDelta(text)) }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        })
+    }
+}
+
+struct JSONFenceStripper {
+    private var buffer = ""
+    private var openingResolved = false
+    private var insideFence = false
+    private var closed = false
+
+    mutating func consume(_ delta: String) -> String {
+        guard !closed else { return "" }
+        buffer += delta
+        return drain(final: false)
+    }
+
+    mutating func finish() -> String {
+        guard !closed else { return "" }
+        let text = drain(final: true)
+        closed = true
+        return text
+    }
+
+    private mutating func drain(final: Bool) -> String {
+        if !openingResolved {
+            let leading = buffer.drop { $0.isWhitespace }
+            if leading.hasPrefix("```") {
+                guard let newline = leading.firstIndex(of: "\n") else {
+                    if !final { return "" }
+                    buffer = ""
+                    openingResolved = true
+                    insideFence = true
+                    return ""
+                }
+                buffer = String(leading[leading.index(after: newline)...])
+                openingResolved = true
+                insideFence = true
+            } else if !final, leading.count < 3, "```".hasPrefix(leading) {
+                return ""
+            } else {
+                buffer = String(leading)
+                openingResolved = true
+            }
+        }
+
+        if insideFence, let fence = buffer.range(of: "```") {
+            let body = String(buffer[..<fence.lowerBound])
+            buffer = ""
+            insideFence = false
+            closed = true
+            return trimmingTrailingWhitespace(body)
+        }
+
+        if final {
+            let body = buffer
+            buffer = ""
+            return trimmingTrailingWhitespace(body)
+        }
+
+        let holdback = insideFence ? 2 : 0
+        let safeCount = max(buffer.count - holdback, 0)
+        var emit = String(buffer.prefix(safeCount))
+        buffer = String(buffer.dropFirst(safeCount))
+
+        let trimmed = trimmingTrailingWhitespace(emit)
+        buffer = String(emit.dropFirst(trimmed.count)) + buffer
+        emit = trimmed
+        return emit
+    }
+
+    private func trimmingTrailingWhitespace(_ text: String) -> String {
+        String(text.reversed().drop { $0.isWhitespace }.reversed())
+    }
 }
 
 public protocol LanguageModelCache: Sendable {

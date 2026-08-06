@@ -1,0 +1,31 @@
+---
+title: "Tool parts overwrite each other in the UI"
+description: "A repeated tool call id collapses two calls into one card."
+---
+
+## Symptom
+
+Two separate tool calls render as one, or a finished tool card is replaced by a
+running one.
+
+## Why it happens
+
+The UI-message reducer keys tool parts by call id. When a provider reuses an
+id across calls, or a transport replays one, the second call lands on the first
+one's part.
+
+The SDK starts a new UI tool part when it sees a reused id rather than
+overwriting the finished one, so if you are still seeing collapsing the ids are
+being rewritten somewhere in your own transport.
+
+## Fix
+
+Check that your transport passes tool call ids through unchanged. If you mint
+ids yourself, use [`generateId`](/docs/reference/generate-id) or
+[`createIdGenerator`](/docs/reference/create-id-generator) so they match
+the format the loop produces and stay unique.
+
+## See also
+
+- [Chat UI](/docs/chat-ui)
+- [Streaming protocol](/docs/streaming-protocol)

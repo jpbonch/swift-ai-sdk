@@ -1,0 +1,40 @@
+---
+title: "AIError.missingToolResults"
+description: "A conversation was sent on with tool calls that have no matching results."
+---
+
+## Symptom
+
+A call throws `AIError.missingToolResults([...])`, listing one or more tool
+call ids.
+
+## Why it happens
+
+Every `toolCall` in an assistant message needs a matching `toolResult` before
+that conversation can go back to the model. The array in the error is the ids
+that are unanswered.
+
+This nearly always happens in a client-side tool flow: the model asked for a
+tool, the app was supposed to run it and post the result back, and the next
+turn started before that happened. It also happens after pruning a history by
+hand and dropping a result while keeping its call.
+
+## Fix
+
+Check the history is complete before resuming:
+
+```swift
+if lastAssistantMessageIsCompleteWithToolCalls(messages) {
+  try await resume(messages)
+}
+```
+
+If you prune histories yourself, use
+[`pruneMessages`](/docs/reference/prune-messages) rather than filtering by
+hand. Dropping a tool call there also drops its result, so the pair can never
+get split.
+
+## See also
+
+- [Tools](/docs/tools)
+- [pruneMessages](/docs/reference/prune-messages)

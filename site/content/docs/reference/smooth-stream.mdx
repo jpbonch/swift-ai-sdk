@@ -1,0 +1,38 @@
+---
+title: "smoothStream"
+description: "Re-chunk a text stream by word or line."
+---
+
+Providers emit deltas at whatever granularity they like, which can look jittery
+in a UI. This re-chunks the stream by word or line and paces it, so text
+appears at a steady rhythm.
+
+Cosmetic only. It changes when text is delivered, never what it says.
+
+```swift
+let smoothed = smoothStream(stream: result.textStream, chunking: .word)
+```
+
+## Signature
+
+```swift
+func smoothStream(
+    _ input: AsyncThrowingStream<String, Error>,
+    chunking: SmoothStreamChunking = .word,
+    delay: Duration? = .milliseconds(10)
+) -> AsyncThrowingStream<String, Error>
+```
+
+Defined in `Sources/AI/Core/StreamSmoothing.swift`.
+
+## Parameters
+
+<Parameters name="smoothStream" />
+
+## Returns
+
+An `AsyncThrowingStream<String, Error>`.
+
+## See also
+
+- [Chat UI](/docs/chat-ui)

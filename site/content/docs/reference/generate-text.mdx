@@ -1,0 +1,86 @@
+---
+title: "generateText"
+description: "Generate text and run the tool loop to completion, returning one finished result."
+---
+
+Runs a model to completion and returns the whole result at once. If you pass
+tools, it drives the full loop (call the model, execute the tools it asks for,
+feed the results back) until a stop condition is met.
+
+Reach for it when nothing is watching the output arrive: a background job, a
+server route that returns JSON, a summarizer, an agent step. When a person is
+watching the text appear, use [`streamText`](/docs/reference/stream-text)
+instead.
+
+```swift
+let result = try await generateText(
+  model: AnthropicModel("claude-sonnet-5"),
+  prompt: "Invent a holiday and describe its traditions."
+)
+print(result.text)
+```
+
+## Signature
+
+```swift
+func generateText(
+    model: any LanguageModel,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    tools: [any AIToolProtocol] = [],
+    toolChoice: ToolChoice = .auto,
+    activeTools: [String]? = nil,
+    toolOrder: [String]? = nil,
+    toolsContext: [String: JSONValue] = [:],
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    topP: Double? = nil,
+    topK: Int? = nil,
+    presencePenalty: Double? = nil,
+    frequencyPenalty: Double? = nil,
+    seed: Int? = nil,
+    reasoning: ReasoningEffort = .providerDefault,
+    stopSequences: [String] = [],
+    providerOptions: JSONValue? = nil,
+    stopWhen: [StopCondition]? = nil,
+    maxSteps: Int = 8,
+    prepareCall: PrepareCall? = nil,
+    prepareStep: PrepareStep? = nil,
+    onStepFinish: OnStepFinish? = nil,
+    onFinish: (@Sendable (GenerateTextResult) async -> Void)? = nil,
+    onError: (@Sendable (Error) async -> Void)? = nil,
+    repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async throws -> ToolCall?)? = nil,
+    output: JSONValue? = nil,
+    maxRetries: Int = 2,
+    toolApproval: ToolApprovalPolicy? = nil,
+    toolApprovalSecret: String? = nil,
+    timeout: GenerationTimeout? = nil,
+    runtimeContext: JSONValue? = nil,
+    telemetry: TelemetrySettings? = nil,
+    compaction: Compaction? = nil
+) async throws -> GenerateTextResult
+```
+
+Defined in `Sources/AI/Core/GenerateText.swift`.
+
+## Parameters
+
+<Parameters name="generateText" />
+
+## Returns
+
+`GenerateTextResult` carries the finished `text`, plus `reasoningText`,
+`toolCalls`, `toolResults`, `sources`, `steps`, `messages`,
+`providerMetadata`, `experimentalOutput`, `finishReason`, and `usage`.
+
+`steps` is the per-iteration record of the tool loop, so `result.stepCount`
+tells you how many model calls it took. `messages` is the conversation
+including everything the loop appended, ready to pass into the next turn.
+
+## See also
+
+- [Generating text](/docs/generating-text)
+- [streamText](/docs/reference/stream-text)
+- [generateObject](/docs/reference/generate-object)
+- [Timeouts and approvals](/docs/timeouts-and-approvals)

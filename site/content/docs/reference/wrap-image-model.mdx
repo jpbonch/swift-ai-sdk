@@ -1,0 +1,42 @@
+---
+title: "wrapImageModel"
+description: "Wrap an image model with middleware."
+---
+
+The image-model counterpart to
+[`wrapLanguageModel`](/docs/reference/wrap-language-model). Commonly used
+to append house style to every prompt.
+
+```swift
+let images = wrapImageModel(
+  model: OpenAIImageModel("gpt-image-2"),
+  middleware: [ImageModelMiddleware(transformRequest: { request in
+    var request = request
+    request.prompt += ", studio lighting"
+    return request
+  })]
+)
+```
+
+## Signature
+
+```swift
+func wrapImageModel(
+    model: any ImageModel,
+    middleware: [ImageModelMiddleware]
+) -> any ImageModel
+```
+
+Defined in `Sources/AI/Core/ModelMiddleware.swift`.
+
+## Parameters
+
+<Parameters name="wrapImageModel" />
+
+## Returns
+
+An `any ImageModel`.
+
+## See also
+
+- [Middleware](/docs/middleware)

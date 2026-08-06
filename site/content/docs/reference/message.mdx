@@ -1,0 +1,54 @@
+---
+title: "Message"
+description: "One turn in a conversation: a role and the content parts that make it up."
+---
+
+A role plus an array of [`ContentPart`](/docs/reference/content-part). Text is
+the common case, but a single message can also carry images, files, tool calls,
+tool results, and reasoning.
+
+Messages are what you pass when a call needs history rather than a bare prompt.
+Building them by hand is normal; the convenience initializers cover the simple
+text case so you rarely spell out the parts.
+
+Order matters and so does completeness: every tool call in an assistant message
+needs a matching tool result before that conversation can go back to the model.
+
+```swift
+let messages: [Message] = [
+  .system("Answer in one sentence."),
+  .user("What is the tallest mountain?"),
+  .assistant("Mount Everest, at 8,849 metres."),
+  .user("And the second?")
+]
+```
+
+## Declaration
+
+```swift
+public struct Message
+```
+
+Defined in `Sources/AI/Core/Message.swift`.
+
+## Initializer
+
+```swift
+init(
+    role: Role,
+    content: [ContentPart]
+)
+```
+
+## Properties
+
+| Property | Type | Default |
+| --- | --- | --- |
+| `var role` | `Role` | — |
+| `var content` | `[ContentPart]` | — |
+
+## See also
+
+- [Messages guide](/docs/messages)
+- [ContentPart](/docs/reference/content-part)
+- [convertToModelMessages](/docs/reference/convert-to-model-messages)

@@ -1,0 +1,46 @@
+---
+title: "rerank"
+description: "Reorder candidate documents against a query."
+---
+
+Sends a query and a list of documents to a reranking model, which scores how
+well each one answers the query. More accurate than embedding similarity
+because the model sees the query and document together.
+
+The usual shape is retrieve broadly with embeddings, then rerank the top
+candidates before handing them to a model.
+
+```swift
+let result = try await rerank(
+  model: CohereRerankingModel("rerank-v3.5"),
+  query: "how do I cancel a subscription",
+  documents: candidates,
+  topN: 5
+)
+```
+
+## Signature
+
+```swift
+func rerank(
+    model: any RerankingModel,
+    query: String,
+    documents: [String],
+    topN: Int? = nil,
+    maxRetries: Int = 2
+) async throws -> RerankResult
+```
+
+Defined in `Sources/AI/Core/Reranking.swift`.
+
+## Parameters
+
+<Parameters name="rerank" />
+
+## Returns
+
+`RerankResult` with scored, ordered `results` and `usage`.
+
+## See also
+
+- [Reranking](/docs/reranking)

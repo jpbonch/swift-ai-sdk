@@ -1,0 +1,36 @@
+---
+title: "detectToolDrift"
+description: "Compare tool fingerprints against an approved baseline."
+---
+
+Reports which tools were added or changed since the baseline. A server that
+quietly rewrites a tool's description or schema after approval is the rug-pull
+attack this exists to catch.
+
+```swift
+let drift = detectToolDrift(fingerprintTools(latest), baseline: approved)
+if drift.hasDrift { requireReapproval(drift.changed, drift.added) }
+```
+
+## Signature
+
+```swift
+func detectToolDrift(
+    _ current: [String: MCPToolFingerprint],
+    baseline: [String: MCPToolFingerprint]
+) -> MCPToolDrift
+```
+
+Defined in `Sources/AI/MCP/MCPToolDrift.swift`.
+
+## Parameters
+
+<Parameters name="detectToolDrift" />
+
+## Returns
+
+An `MCPToolDrift` with `added`, `changed`, and `hasDrift`.
+
+## See also
+
+- [MCP](/docs/mcp)

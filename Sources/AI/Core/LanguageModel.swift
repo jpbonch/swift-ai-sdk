@@ -115,5 +115,15 @@ public struct LanguageModelRequest: Sendable {
 public protocol LanguageModel: Sendable {
     var provider: String { get }
     var modelID: String { get }
+    var contextWindow: Int { get }
     func stream(_ request: LanguageModelRequest) async throws -> AsyncThrowingStream<StreamPart, Error>
+    func supportsRemoteURL(_ url: URL, mediaType: String?) -> Bool
+}
+
+public extension LanguageModel {
+    func supportsRemoteURL(_ url: URL, mediaType: String?) -> Bool { true }
+
+    var contextWindow: Int {
+        ModelContextWindows.resolve(provider: provider, modelID: modelID)
+    }
 }

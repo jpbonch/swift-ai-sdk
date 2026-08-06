@@ -153,3 +153,36 @@ final class ProviderToolsTests: XCTestCase {
         XCTAssertTrue(result.toolResults.isEmpty)
     }
 }
+
+final class CodeExecutionVersionTests: XCTestCase {
+
+    func testCodeExecutionOnlyUsesTheDocumentedProgrammaticCaller() {
+        XCTAssertEqual(
+            ToolLoading.codeExecutionOnly().allowedCallers, ["code_execution_20260120"]
+        )
+    }
+
+    func testCodeExecutionOnlyTakesAnExplicitVersion() {
+        XCTAssertEqual(
+            ToolLoading.codeExecutionOnly(version: "code_execution_20260521").allowedCallers,
+            ["code_execution_20260521"]
+        )
+    }
+
+    func testCodeExecutionDefaultIsNotTheLegacyPythonOnlyVersion() {
+        let version = AnthropicModel.Tools.codeExecution().args["type"]?.stringValue
+        XCTAssertNotEqual(version, "code_execution_20250522")
+        XCTAssertEqual(version, "code_execution_20260521")
+    }
+
+    func testEveryCodeExecutionVersionCarriesABetaHeader() {
+        for version in [
+            "code_execution_20250522", "code_execution_20250825",
+            "code_execution_20260120", "code_execution_20260521"
+        ] {
+            XCTAssertNotNil(
+                AnthropicModel.providerToolBetas["anthropic.\(version)"], version
+            )
+        }
+    }
+}

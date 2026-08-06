@@ -45,6 +45,8 @@ public struct BedrockModel: LanguageModel {
         self.urlSession = urlSession
     }
 
+    public func supportsRemoteURL(_ url: URL, mediaType: String?) -> Bool { false }
+
     public func stream(
         _ request: LanguageModelRequest
     ) async throws -> AsyncThrowingStream<StreamPart, Error> {

@@ -128,7 +128,9 @@ done.usage       // token counts
 ```
 
 On the Responses API, `compactResponse(previousResponseID:)` compacts a
-stored response's context and returns the new response.
+stored response's context and returns the new response, and
+`retrieveResponse(_:)` / `deleteResponse(_:)` read back or remove a stored
+response by id.
 
 ## Beyond text
 
@@ -144,11 +146,46 @@ stored response's context and returns the new response.
 
 Typed clients wrap the rest of the REST surface:
 
-- `XaiFilesClient`: `upload`, `list`, `get`, `download`, `delete` on `/v1/files`.
-- `XaiBatchClient`: `create`, `get`, `list`, `requests`, `results` on `/v1/batches`.
-- `XaiCollectionsClient`: `create`, `search`, and document management for
-  the retrieval collections API.
+- `XaiFilesClient`: `upload` (with `expiresAfter`), `list` (paging and
+  `filter`), `get`, `update`, `download`, `delete` on `/v1/files`.
+- `XaiBatchClient`: `create`, `get`, `list`, `requests`, `addRequests`,
+  `results`, `cancel` on `/v1/batches`.
+- `XaiModelsClient`: `/v1/models` plus the richer `language-models`,
+  `image-generation-models`, and `video-generation-models` catalogs, which
+  add modalities, pricing, fingerprints, and aliases.
+- `XaiPlatformClient`: `apiKeyInfo()`, `tokenizeText(_:model:)`, SIP phone
+  numbers (`/v2/phone-numbers`), in-call `referCall` / `hangUpCall`, and the
+  `tts/voices` and `custom-voices` catalogs.
+- `XaiCollectionsClient`: collection and document management plus search.
+
+### Collections span two services
+
+Collection *management* lives on `https://management-api.x.ai/v1` and needs a
+**Management API key**; only search runs on `https://api.x.ai/v1` with the
+usual `XAI_API_KEY`. The client holds both and routes each call itself:
+
+```swift
+let collections = XaiCollectionsClient()   // XAI_MANAGEMENT_API_KEY + XAI_API_KEY
+
+let id = try await collections.create(name: "Filings", description: "SEC")
+try await collections.addDocument(collectionID: id, fileID: uploaded.id)
+let hits = try await collections.search(
+  query: "revenue guidance",
+  source: ["collection_ids": .array([.string(id)])]
+)
+```
+
+If `managementAPIKey` is omitted it falls back to `apiKey`, which works only
+when one key carries both scopes. `list`, `listDocuments`, `document`,
+`documents` (batch get), `update`, `regenerateIndices`, and `removeDocument`
+round out the surface, and every management call accepts `teamID:`.
 
 Files, Batch, and deferred completions all store data server-side, so
 Zero Data Retention teams get a 403/400 from them — those accounts are
 limited to the streaming chat and Responses paths.
+
+Two documented endpoints are not wrapped: chunked upload
+(`/v1/files:initialize` + `:uploadChunks`) and the request body for
+`PUT /v1/files/{id}`, because xAI's reference lists the routes without
+payload fields. `XaiFilesClient.update(_:body:)` takes a raw `JSONValue` so
+you can send the documented shape once it is published.

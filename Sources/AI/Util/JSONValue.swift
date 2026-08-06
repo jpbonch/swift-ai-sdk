@@ -53,6 +53,11 @@ public extension JSONValue {
 
     subscript(key: String) -> JSONValue? { objectValue?[key] }
 
+    subscript(index: Int) -> JSONValue? {
+        guard let array = arrayValue, array.indices.contains(index) else { return nil }
+        return array[index]
+    }
+
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
         let data = try JSONEncoder().encode(self)
         return try JSONDecoder().decode(T.self, from: data)

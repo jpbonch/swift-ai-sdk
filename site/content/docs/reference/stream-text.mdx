@@ -1,0 +1,87 @@
+---
+title: "streamText"
+description: "Stream text, reasoning, tool calls, and results as they arrive."
+---
+
+The streaming counterpart to `generateText`, with the same tool loop and the
+same parameters. Instead of waiting for a finished result you consume an
+`AsyncSequence` of parts as the model produces them.
+
+Use it anywhere a person is waiting on output. The stream carries more than
+text: reasoning deltas, tool call starts, tool results, sources, and provider
+metadata all arrive in order, so a UI can show the model working rather than a
+spinner.
+
+```swift
+let stream = streamText(
+  model: OpenAIModel("gpt-5.1"),
+  prompt: "Write a haiku about Swift concurrency."
+)
+
+for try await text in stream.textStream {
+  print(text, terminator: "")
+}
+```
+
+## Signature
+
+```swift
+func streamText(
+    model: any LanguageModel,
+    messages: [Message] = [],
+    system: String? = nil,
+    prompt: String? = nil,
+    tools: [any AIToolProtocol] = [],
+    toolChoice: ToolChoice = .auto,
+    activeTools: [String]? = nil,
+    toolOrder: [String]? = nil,
+    toolsContext: [String: JSONValue] = [:],
+    maxOutputTokens: Int = 1024,
+    temperature: Double? = nil,
+    topP: Double? = nil,
+    topK: Int? = nil,
+    presencePenalty: Double? = nil,
+    frequencyPenalty: Double? = nil,
+    seed: Int? = nil,
+    reasoning: ReasoningEffort = .providerDefault,
+    stopSequences: [String] = [],
+    providerOptions: JSONValue? = nil,
+    stopWhen: [StopCondition]? = nil,
+    maxSteps: Int = 8,
+    prepareCall: PrepareCall? = nil,
+    prepareStep: PrepareStep? = nil,
+    onStepFinish: OnStepFinish? = nil,
+    onFinish: (@Sendable (GenerateTextResult) async -> Void)? = nil,
+    onError: (@Sendable (Error) async -> Void)? = nil,
+    onChunk: (@Sendable (TextStreamPart) -> Void)? = nil,
+    onAbort: (@Sendable () async -> Void)? = nil,
+    repairToolCall: (@Sendable (ToolCall, [any AIToolProtocol]) async throws -> ToolCall?)? = nil,
+    maxRetries: Int = 2,
+    toolApproval: ToolApprovalPolicy? = nil,
+    toolApprovalSecret: String? = nil,
+    timeout: GenerationTimeout? = nil,
+    runtimeContext: JSONValue? = nil,
+    telemetry: TelemetrySettings? = nil,
+    compaction: Compaction? = nil
+) -> StreamTextResult
+```
+
+Defined in `Sources/AI/Core/StreamText.swift`.
+
+## Parameters
+
+<Parameters name="streamText" />
+
+## Returns
+
+`StreamTextResult` exposes several views of the same run. `textStream` yields
+only text deltas; `fullStream` yields every `TextStreamPart` including
+reasoning, tool activity, and metadata. Awaiting `text`, `steps`, `usage`, or
+`finishReason` gives you the finished values once the stream completes.
+
+## See also
+
+- [Generating text](/docs/generating-text)
+- [generateText](/docs/reference/generate-text)
+- [smoothStream](/docs/reference/smooth-stream)
+- [Chat UI](/docs/chat-ui)

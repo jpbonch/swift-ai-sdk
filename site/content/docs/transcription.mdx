@@ -1,7 +1,7 @@
 ---
 title: Transcription
 description: Turn audio into text with a shared TranscriptionModel API.
-icon: AudioWaveform
+icon: Subtitle
 ---
 
 Every transcription provider conforms to `TranscriptionModel` and works with
@@ -21,7 +21,45 @@ for segment in result.segments {
 ```
 
 Results include the text plus segments, detected language, and duration when
-the provider returns them. Native request fields go in `providerOptions`:
+the provider returns them. When `mediaType` is generic
+(`application/octet-stream`, `audio/*`, or empty), the container is sniffed
+from the bytes — MP4/M4A from its `ftyp` box, plus WAV, Ogg, FLAC, and MP3 —
+so a mislabeled upload still reaches the provider correctly.
+
+## Streaming transcription
+
+`streamTranscribe` transcribes live audio, emitting updates before the audio
+is complete. Models opt in by conforming to `StreamingTranscriptionModel`;
+`DeepgramTranscriptionModel` does, over Deepgram's live WebSocket API.
+
+```swift
+let result = try streamTranscribe(
+  model: DeepgramTranscriptionModel("nova-3"),
+  audio: microphoneChunks,          // AsyncThrowingStream<Data, Error>
+  mediaType: "audio/pcm"
+)
+
+for try await part in result.fullStream {
+  switch part {
+  case .partialTranscript(let text): draft = text          // replaces
+  case .transcriptDelta(let text): transcript += text      // appends
+  case .speechStart, .speechEnd, .segment, .language: break
+  case .finish(let response): print(response.text)
+  }
+}
+```
+
+Interim results arrive as `.partialTranscript` (each one replaces the last)
+and finalized text as `.transcriptDelta` (each one appends), so `textStream`
+and the `text` promise never double-count a revised phrase.
+
+`fullStream` is single-consumer with no replay: read it once, or skip it and
+await `result.text` / `.segments` / `.language`, which drain the stream
+internally and cache. Cancelling the result — or a failure before streaming
+starts, such as a bad key — cancels the audio stream you passed in, so an
+upstream producer never hangs.
+
+Native request fields go in `providerOptions`:
 
 ```swift
 let result = try await transcribe(

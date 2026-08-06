@@ -21,12 +21,20 @@ public struct ToolApprovalResponse: Sendable, Hashable {
     public var toolCallID: String
     public var approved: Bool
     public var reason: String?
+    public var signature: String?
 
-    public init(approvalID: String, toolCallID: String, approved: Bool, reason: String? = nil) {
+    public init(
+        approvalID: String,
+        toolCallID: String,
+        approved: Bool,
+        reason: String? = nil,
+        signature: String? = nil
+    ) {
         self.approvalID = approvalID
         self.toolCallID = toolCallID
         self.approved = approved
         self.reason = reason
+        self.signature = signature
     }
 }
 
@@ -34,6 +42,7 @@ public struct ImageContent: Sendable, Hashable {
     public var data: Data?
     public var url: URL?
     public var mediaType: String?
+    public var providerReference: [String: String] = [:]
 
     public init(data: Data, mediaType: String? = nil) {
         self.data = data
@@ -46,6 +55,17 @@ public struct ImageContent: Sendable, Hashable {
         self.url = url
         self.mediaType = mediaType
     }
+
+    public init(providerReference: [String: String], mediaType: String? = nil) {
+        self.data = nil
+        self.url = nil
+        self.mediaType = mediaType
+        self.providerReference = providerReference
+    }
+
+    public func fileID(for provider: String) -> String? {
+        providerReference[provider]
+    }
 }
 
 public struct FileContent: Sendable, Hashable {
@@ -53,6 +73,7 @@ public struct FileContent: Sendable, Hashable {
     public var url: URL?
     public var mediaType: String
     public var filename: String?
+    public var providerReference: [String: String] = [:]
 
     public init(data: Data, mediaType: String, filename: String? = nil) {
         self.data = data
@@ -66,6 +87,20 @@ public struct FileContent: Sendable, Hashable {
         self.url = url
         self.mediaType = mediaType
         self.filename = filename
+    }
+
+    public init(
+        providerReference: [String: String], mediaType: String, filename: String? = nil
+    ) {
+        self.data = nil
+        self.url = nil
+        self.mediaType = mediaType
+        self.filename = filename
+        self.providerReference = providerReference
+    }
+
+    public func fileID(for provider: String) -> String? {
+        providerReference[provider]
     }
 }
 
