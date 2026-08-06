@@ -62,7 +62,7 @@ public struct BedrockModel: LanguageModel {
         let isForcedJSON: Bool
         if case .json = request.responseFormat { isForcedJSON = true } else { isForcedJSON = false }
 
-        return AsyncThrowingStream { continuation in
+        return AsyncThrowingStream<StreamPart, Error> { continuation in
             let task = Task {
                 var toolBlocks: [Int: (id: String, name: String, type: String?, json: String)] = [:]
                 var stopReason: String?
