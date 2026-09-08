@@ -168,8 +168,8 @@ public struct FoundationModelsModel: LanguageModel {
     }
 
     static func mapError(_ error: Error) -> Error {
+        #if compiler(>=6.4)
         if #available(iOS 27.0, macOS 27.0, visionOS 27.0, *) {
-            #if compiler(>=6.4)
             if let pccError = error as? PrivateCloudComputeLanguageModel.Error {
                 if case .quotaLimitReached = pccError {
                     return AIError.transport(
@@ -179,7 +179,6 @@ public struct FoundationModelsModel: LanguageModel {
                 }
                 return AIError.transport("Private Cloud Compute: \(pccError)")
             }
-            #endif
             if let systemError = error as? SystemLanguageModel.Error {
                 switch systemError {
                 case .assetsUnavailable:
@@ -205,6 +204,7 @@ public struct FoundationModelsModel: LanguageModel {
                 }
             }
         }
+        #endif
         if let generationError = error as? LanguageModelSession.GenerationError {
             return AIError.transport("Foundation Models: \(generationError)")
         }
@@ -223,6 +223,7 @@ public struct FoundationModelsModel: LanguageModel {
     }
 
     static func isContentFiltered(_ error: Error) -> Bool {
+        #if compiler(>=6.4)
         if #available(iOS 27.0, macOS 27.0, visionOS 27.0, *) {
             if let modelError = error as? LanguageModelError {
                 switch modelError {
@@ -231,6 +232,7 @@ public struct FoundationModelsModel: LanguageModel {
                 }
             }
         }
+        #endif
         return false
     }
 }
