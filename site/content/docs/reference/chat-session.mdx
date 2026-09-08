@@ -87,6 +87,16 @@ func addToolApprovalResponse(
 func resumeStream()
 ```
 
+Use `recover()` after app suspension or a lost connection when saved history
+may include replies completed while offline. Implement
+`ChatTransport.loadMessages(chatID:)` to return saved messages, and
+`reconnectToStream(chatID:)` to return an active stream or nil.
+Recovery cancels only local consumption, loads history, and replays by stable
+assistant message ID. A stream ending before replay starts triggers a final
+history read. Clear or replacement invalidates outstanding recovery work.
+The transport remains responsible for authentication and server persistence.
+Do not call recovery periodically while a healthy stream is running.
+
 ```swift
 func stop()
 ```

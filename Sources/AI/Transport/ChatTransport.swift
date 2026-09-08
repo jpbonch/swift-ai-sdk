@@ -25,12 +25,16 @@ public struct ChatRequest: Sendable {
 }
 
 public protocol ChatTransport: Sendable {
+    /// Authoritative saved history, or nil when this transport has no persistence.
+    func loadMessages(chatID: String) async throws -> [UIMessage]?
     func sendMessages(_ request: ChatRequest) async throws -> AsyncThrowingStream<UIMessageChunk, Error>
 
     func reconnectToStream(chatID: String) async throws -> AsyncThrowingStream<UIMessageChunk, Error>?
 }
 
 public extension ChatTransport {
+    func loadMessages(chatID: String) async throws -> [UIMessage]? { nil }
+
     func reconnectToStream(chatID: String) async throws -> AsyncThrowingStream<UIMessageChunk, Error>? {
         nil
     }
